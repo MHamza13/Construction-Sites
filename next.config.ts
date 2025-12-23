@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  
+  // Disable Turbopack to avoid worker retries error
+  turbopack: false,  // ✅ Add this line
 
-  turbopack: false, // Disable Turbopack for now
   // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,
@@ -57,8 +59,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-
-  
 
   experimental: {
     serverComponentsExternalPackages: ["sharp"],
