@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+
+  turbopack: false, // Disable Turbopack for now
   // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,
