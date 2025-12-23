@@ -1,16 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  
-  // Disable Turbopack to avoid worker retries error
-  turbopack: false,  // ✅ Add this line
+  // Disable Turbopack to avoid WorkerError
+  turbopack: false, // ✅ Add this line
 
   // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,
   },
 
-  // Ignore ESLint during build (optional)
+  // Ignore ESLint during build
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -45,17 +44,15 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Critical: Fix sharp & image optimization on Netlify
+  // Image optimization
   images: {
-    unoptimized: false, // Keep optimization ON
+    unoptimized: false,
     loader: "default",
-    
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'ui-avatars.com',
-        port: '',
-        pathname: '/api/**',
+        protocol: "https",
+        hostname: "ui-avatars.com",
+        pathname: "/**",
       },
     ],
   },
