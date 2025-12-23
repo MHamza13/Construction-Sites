@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Disable Turbopack to fix WorkerError
-  turbopack: false,  // ✅ Add this line
+  // Disable Turbopack completely to avoid WorkerError
+  turbopack: false, // ✅ critical fix
+
+  reactStrictMode: true, // Always recommended
 
   // Ignore TypeScript errors during build
   typescript: {
@@ -43,16 +45,18 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Image optimization
+  // Image optimization for external sources
   images: {
     unoptimized: false,
     loader: "default",
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "ui-avatars.com",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "ui-avatars.com", pathname: "/**" },
+      { protocol: "https", hostname: "salmanfarooq1-001-site1.jtempurl.com", pathname: "/**" },
+      { protocol: "https", hostname: "tile.openstreetmap.org", pathname: "/**" },
+      { protocol: "https", hostname: "*.tile.openstreetmap.org", pathname: "/**" },
+      { protocol: "https", hostname: "unpkg.com", pathname: "/**" },
+      { protocol: "https", hostname: "cdn.jsdelivr.net", pathname: "/**" },
+      { protocol: "https", hostname: "cdnjs.cloudflare.com", pathname: "/**" }
     ],
   },
 
