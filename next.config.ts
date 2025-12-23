@@ -1,22 +1,32 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Disable Turbopack completely to avoid WorkerError
-  turbopack: false, // ✅ critical fix
-
-  reactStrictMode: true, // Always recommended
-
-  // Ignore TypeScript errors during build
+  // TypeScript errors ignore karne ke liye
   typescript: {
     ignoreBuildErrors: true,
   },
 
-  // Ignore ESLint during build
+  // ESLint errors ignore karne ke liye
   eslint: {
     ignoreDuringBuilds: true,
   },
 
-  // SVG support using @svgr/webpack
+  // Next.js 16 mein 'serverComponentsExternalPackages' ab bahar aa gaya hai
+  serverExternalPackages: ["sharp"],
+
+  // Turbopack ke liye SVG support (Naya tarika)
+  experimental: {
+    turbo: {
+      rules: {
+        "*.svg": {
+          loaders: ["@svgr/webpack"],
+          as: "*.js",
+        },
+      },
+    },
+  },
+
+  // Webpack support (Jab aap build --webpack use karein)
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/i,
@@ -45,23 +55,16 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Image optimization for external sources
   images: {
     unoptimized: false,
-    loader: "default",
     remotePatterns: [
-      { protocol: "https", hostname: "ui-avatars.com", pathname: "/**" },
-      { protocol: "https", hostname: "salmanfarooq1-001-site1.jtempurl.com", pathname: "/**" },
-      { protocol: "https", hostname: "tile.openstreetmap.org", pathname: "/**" },
-      { protocol: "https", hostname: "*.tile.openstreetmap.org", pathname: "/**" },
-      { protocol: "https", hostname: "unpkg.com", pathname: "/**" },
-      { protocol: "https", hostname: "cdn.jsdelivr.net", pathname: "/**" },
-      { protocol: "https", hostname: "cdnjs.cloudflare.com", pathname: "/**" }
+      {
+        protocol: "https",
+        hostname: "ui-avatars.com",
+        port: "",
+        pathname: "/api/**",
+      },
     ],
-  },
-
-  experimental: {
-    serverComponentsExternalPackages: ["sharp"],
   },
 };
 
