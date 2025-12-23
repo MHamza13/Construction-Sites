@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Disable Turbopack to avoid WorkerError
-  turbopack: false, // ✅ Add this line
+  // Disable Turbopack to fix WorkerError
+  turbopack: false,  // ✅ Add this line
 
   // Ignore TypeScript errors during build
   typescript: {
@@ -40,7 +40,6 @@ const nextConfig: NextConfig = {
         },
       ],
     });
-
     return config;
   },
 
