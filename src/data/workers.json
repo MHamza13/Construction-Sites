@@ -1,0 +1,45 @@
+[
+  {
+    "id": 1,
+    "name": "Sarah Johnson",
+    "role": "Site Supervisor",
+    "status": "Active",
+    "employeeId": "#EMP001",
+    "phone": "+1 (555) 123-4567",
+    "email": "sarah.j@company.com",
+    "experience": "8 years",
+    "projects": "3 active",
+    "dailyWage": 200,
+    "hourlyRate": 25
+  },
+  {
+    "id": 2,
+    "name": "John Doe",
+    "role": "Foundation Specialist",
+    "status": "Active",
+    "employeeId": "#EMP002",
+    "phone": "+1 (555) 234-5678",
+    "email": "john.doe@company.com",
+    "experience": "5 years",
+    "tasks": "2 active",
+    "dailyWage": 160,
+    "hourlyRate": 20
+  },
+  {
+    "id": 3,
+    "name": "Mike Smith",
+    "role": "Equipment Operator",
+    "status": "Inactive",
+    "employeeId": "#EMP003",
+    "phone": "+1 (555) 345-6789",
+    "email": "mike.smith@company.com",
+    "experience": "12 years",
+    "equipment": "Excavator #3",
+    "dailyWage": 180,
+    "hourlyRate": 22.5
+  }
+]
+
+
+
+
