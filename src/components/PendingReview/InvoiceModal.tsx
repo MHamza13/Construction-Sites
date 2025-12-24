@@ -44,7 +44,7 @@ export const formatDateOnlyUK = (dateStr?: string | Date): string =>
 export const formatTimeOnlyUK = (dateStr?: string): string =>
   formatDateToUK(dateStr, "hh:mm a");
 
-const DEFAULT_OVERTIME_MULTIPLIER = 1.5;
+const DEFAULT_OVERTIME_MULTIPLIER = 1;
 const STANDARD_WORK_HOURS_PER_DAY = 8;
 
 interface ShiftDetailApi {
@@ -448,6 +448,7 @@ const ShiftDetails: React.FC<{
     if (!shifts || shifts.length === 0) return { totalAdjustedHours: 0, totalOTHours: 0, totalPay: 0, totalRegularHours: 0 };
 
     const totalAdjustedHours = shifts.reduce((sum, s) => sum + (s.AdjustedHours ?? s.TotalHours ?? 0), 0);
+    const totalHours = shifts.reduce((sum, s) => sum + (s.TotalHours ?? 0), 0);
     const dailyOvertimeHours = Math.max(0, totalAdjustedHours - STANDARD_WORK_HOURS_PER_DAY);
     const dailyRegularHours = totalAdjustedHours - dailyOvertimeHours;
 
@@ -460,6 +461,7 @@ const ShiftDetails: React.FC<{
     const overtimePay = dailyOvertimeHours * overtimeRate;
 
     return {
+      totalHours: Number(totalHours.toFixed(1)), 
       totalAdjustedHours: Number(totalAdjustedHours.toFixed(1)),
       totalRegularHours: Number(dailyRegularHours.toFixed(1)),
       totalOTHours: Number(dailyOvertimeHours.toFixed(1)),
@@ -561,22 +563,12 @@ const ShiftDetails: React.FC<{
 
                   {/* PDF جیسا ترتیب: Standard → Overtime → Total → Adjusted → Daily Wages → Hourly Rate → Amount */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 text-sm" onClick={(e) => e.stopPropagation()}>
-                    {/* 1. Standard (Daily Hours) */}
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Standard</p>
-                      <p className="font-bold text-gray-800 dark:text-gray-200">{dailyTotals.totalRegularHours.toFixed(1)}h</p>
-                    </div>
-
-                    {/* 2. Overtime */}
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Overtime</p>
-                      <p className="font-bold text-orange-600 dark:text-orange-400">{dailyTotals.totalOTHours.toFixed(1)}h</p>
-                    </div>
+               
 
                     {/* 3. Total */}
                     <div>
                       <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Total</p>
-                      <p className="font-bold text-blue-600 dark:text-blue-400">{dailyTotals.totalAdjustedHours.toFixed(1)}h</p>
+                      <p className="font-bold text-blue-600 dark:text-blue-400">{dailyTotals.totalHours.toFixed(1)}h</p>
                     </div>
 
                     {/* 4. Adjusted (Manual Input) */}
@@ -820,11 +812,12 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
       dailyWagesRate: worker.DailyWagesRate ?? 0,
       hourlyWagesRate: worker.HourlyRate ?? 0,
       shiftIds: shiftIds,
-      totalHours: totalAdjustedHours,
+      totalHours: totals.totalHours,
+      adjustedHours: totalAdjustedHours,
       totalAmount: parseFloat(totals.totalPay.toFixed(2)),
       invoiceStatus: "UnPaid",
       notes: internalNotes,
-      publicNotes: "", // خالی رکھا گیا
+      publicNotes: "",
       invoicePdfBase64: invoicePDF_Base64,
       invoicePeriod: invoicePeriod,
       invoiceDetails: filteredShifts.map(shift => {

@@ -296,6 +296,7 @@ export default function ViewInvoiceModal({
                 <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                   {Object.keys(groupedShifts).length > 0 ? (
                     Object.entries(groupedShifts).map(([dateKey, shifts]) => {
+                       const dailyTotalCalculated = shifts.reduce((sum, s) => sum + (s.calculatedHours || 0), 0);
                       const dailyTotalAdjustedHours = shifts.reduce(
                         (sum, s) =>
                           sum + (s.adjustedHours || s.calculatedHours || 0),
@@ -343,6 +344,12 @@ export default function ViewInvoiceModal({
                               {/* Daily Summary */}
                               <div className="bg-gray-50/50 dark:bg-gray-800/50 p-3 text-xs space-y-1">
                                 <div className="flex justify-between">
+                                  <span className="text-gray-600 dark:text-gray-300">Total Hours:</span>
+                                  <span className="font-semibold text-gray-800 dark:text-gray-100">
+                                    {dailyTotalCalculated.toFixed(2)}h
+                                  </span>
+                                </div>
+                                 <div className="flex justify-between">
                                   <span className="text-gray-600 dark:text-gray-300">Adjusted Hours:</span>
                                   <span className="font-semibold text-gray-800 dark:text-gray-100">
                                     {dailyTotalAdjustedHours.toFixed(2)}h

@@ -4,10 +4,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
 import { fetchWorkers } from "@/redux/worker/workerSlice";
 import { fetchProjects } from "@/redux/projects/projectSlice";
-import { GroupIcon, BoxIconLine } from "@/icons";
-import { Loader2, CheckCircle, PlayCircle } from "lucide-react";
+// Humne problematic SVG imports ko hata kar Lucide use kiya hai jo zyada stable hai
+import { Loader2, CheckCircle, PlayCircle, Users, Box } from "lucide-react";
 
-// LocalStorage keys (for future use)
+// LocalStorage keys
 const WORKERS_PREV_KEY = "dashboard_workers_prev_count";
 const PROJECTS_PREV_KEY = "dashboard_projects_prev_count";
 const ACTIVE_WORKERS_PREV_KEY = "dashboard_active_workers_prev_count";
@@ -47,7 +47,7 @@ export const EcommerceMetrics = () => {
     }
   }, [totalWorkers, totalProjects, activeWorkers, activeProjects, loading]);
 
-  // Reusable Metric Card
+  // Reusable Metric Card Component
   const MetricCard = ({
     title,
     value,
@@ -63,7 +63,6 @@ export const EcommerceMetrics = () => {
   }) => (
     <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
       <div className="flex items-center space-x-4">
-        {/* Icon with Colored Background */}
         <div
           className={`w-12 h-12 rounded-xl flex items-center justify-center ${color.bg} ${color.darkBg}`}
         >
@@ -74,7 +73,6 @@ export const EcommerceMetrics = () => {
           )}
         </div>
 
-        {/* Title & Value */}
         <div>
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
             {title}
@@ -89,11 +87,11 @@ export const EcommerceMetrics = () => {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-      {/* Total Workers - Purple */}
+      {/* Total Workers - Users Icon use kiya hai */}
       <MetricCard
         title="Total Workers"
         value={totalWorkers}
-        icon={<GroupIcon className={`w-6 h-6 ${loading ? 'text-purple-600' : 'text-purple-700'} dark:text-purple-400`} />}
+        icon={<Users className={`w-6 h-6 ${loading ? 'text-purple-600' : 'text-purple-700'} dark:text-purple-400`} />}
         loading={loading}
         color={{
           bg: "bg-purple-100",
@@ -103,11 +101,11 @@ export const EcommerceMetrics = () => {
         }}
       />
 
-      {/* Total Projects - Orange */}
+      {/* Total Projects - Box Icon use kiya hai */}
       <MetricCard
         title="Total Projects"
         value={totalProjects}
-        icon={<BoxIconLine className={`w-6 h-6 ${loading ? 'text-orange-600' : 'text-orange-700'} dark:text-orange-400`} />}
+        icon={<Box className={`w-6 h-6 ${loading ? 'text-orange-600' : 'text-orange-700'} dark:text-orange-400`} />}
         loading={loading}
         color={{
           bg: "bg-orange-100",
@@ -117,7 +115,7 @@ export const EcommerceMetrics = () => {
         }}
       />
 
-      {/* Active Workers - Emerald */}
+      {/* Active Workers */}
       <MetricCard
         title="Active Workers"
         value={activeWorkers}
@@ -131,7 +129,7 @@ export const EcommerceMetrics = () => {
         }}
       />
 
-      {/* Active Projects - Blue */}
+      {/* Active Projects */}
       <MetricCard
         title="Active Projects"
         value={activeProjects}

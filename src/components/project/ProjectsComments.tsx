@@ -31,7 +31,7 @@ const ProjectsComments: React.FC<ProjectsCommentsProps> = ({ projectId }) => {
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
   // Direct base URL (no .env)
-  const IMAGE_BASE_URL = "https://salmanfarooq1-001-site1.jtempurl.com";
+  const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_FILE_URL;
 
   // Consistent color per comment
   const getCommentColor = useMemo(() => {

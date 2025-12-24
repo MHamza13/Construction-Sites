@@ -15,15 +15,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
 
   // Turbopack ke liye SVG support (Naya tarika)
-  experimental: {
-    turbo: {
-      rules: {
-        "*.svg": {
-          loaders: ["@svgr/webpack"],
-          as: "*.js",
-        },
-      },
-    },
+   experimental: {
+    serverComponentsExternalPackages: ["sharp"],
   },
 
   // Webpack support (Jab aap build --webpack use karein)
