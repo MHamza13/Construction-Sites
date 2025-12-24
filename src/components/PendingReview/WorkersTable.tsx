@@ -186,29 +186,44 @@ export default function WorkersTable({
         size: 280,
       }),
 
-      // Shifts
-      columnHelper.accessor("_filteredShifts", {
-        header: ({ column }) => (
-          <button onClick={column.getToggleSortingHandler()} className="flex items-center gap-1 mx-auto">
-            Shifts
-            <SortIcon sort={column.getIsSorted()} />
-          </button>
-        ),
-        cell: (info) => <span className="text-center block">{info.getValue()}</span>,
-        size: 80,
-      }),
+     // Shifts
+columnHelper.accessor("_filteredShifts", {
+  header: ({ column }) => (
+    <button
+      onClick={column.getToggleSortingHandler()}
+      className="flex items-center gap-1 mx-auto text-gray-900 dark:text-gray-100"
+    >
+      Shifts
+      <SortIcon sort={column.getIsSorted()} />
+    </button>
+  ),
+  cell: (info) => (
+    <span className="text-center block text-gray-700 dark:text-gray-300">
+      {info.getValue()}
+    </span>
+  ),
+  size: 80,
+}),
 
-      // Hours
-      columnHelper.accessor("_totalHours", {
-        header: ({ column }) => (
-          <button onClick={column.getToggleSortingHandler()} className="flex items-center gap-1 mx-auto">
-            Hours
-            <SortIcon sort={column.getIsSorted()} />
-          </button>
-        ),
-        cell: (info) => <span className="text-center block">{info.getValue().toFixed(2)}h</span>,
-        size: 90,
-      }),
+// Hours
+columnHelper.accessor("_totalHours", {
+  header: ({ column }) => (
+    <button
+      onClick={column.getToggleSortingHandler()}
+      className="flex items-center gap-1 mx-auto text-gray-900 dark:text-gray-100"
+    >
+      Hours
+      <SortIcon sort={column.getIsSorted()} />
+    </button>
+  ),
+  cell: (info) => (
+    <span className="text-center block text-gray-700 dark:text-gray-300">
+      {info.getValue().toFixed(2)}h
+    </span>
+  ),
+  size: 90,
+}),
+
 
       // Overtime
       columnHelper.accessor("_overtime", {
