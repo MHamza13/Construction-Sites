@@ -33,6 +33,8 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/firebase/Firebase";
 import { fetchProjectById } from "@/redux/projects/projectSlice";
+// Notification Import
+import { sendNotificationToUser } from "@/redux/userDeviceTokken/userDeviceTokkenSlice";
 import Image from "next/image";
 
 // Type Definitions
@@ -372,6 +374,17 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
               createdAt: serverTimestamp(),
               read: false,
             });
+
+            // Notification for File
+            const notificationPayload = {
+              userId: Number(workerId) || 0,
+              type: "chat",
+              title: `Attachment in ${currentProject?.name}`,
+              body: `${user.name} sent a file.`,
+              senderID: Number(user.userId) || 0,
+            };
+            dispatch(sendNotificationToUser(notificationPayload));
+
             resolve();
           } catch (e) {
             reject(e);
@@ -390,19 +403,30 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
 
     setIsSending(true);
     const previewsToSend = [...filePreviews];
+    const messageBody = input.trim();
     setFilePreviews([]);
 
     try {
-      if (input.trim()) {
+      if (messageBody) {
         await ensureChatExists(chatId, user, receiver);
         await addDoc(collection(db, "chats", chatId, "messages"), {
-          content: input.trim(),
+          content: messageBody,
           type: "text",
           senderId: user.userId,
           senderName: user.name,
           createdAt: serverTimestamp(),
           read: false,
         });
+
+        // --- SEND NOTIFICATION TO WORKER ---
+        const notificationPayload = {
+          userId: Number(workerId) || 0,
+          type: "chat",
+          title: `Project Chat: ${currentProject?.name}`,
+          body: messageBody.length > 60 ? messageBody.substring(0, 60) + "..." : messageBody,
+          senderID: Number(user.userId) || 0,
+        };
+        dispatch(sendNotificationToUser(notificationPayload));
       }
       setInput("");
 
@@ -557,7 +581,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
   // Loading / Error States
   if (projectLoading) {
     return (
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 items-center justify-center">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 items-center justify-center text-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-400 mb-4" />
         <p className="text-gray-600 dark:text-gray-300">Loading project details...</p>
       </div>
@@ -566,7 +590,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
 
   if (!currentProject || projectId === null) {
     return (
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 items-center justify-center">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 items-center justify-center text-center">
         <p className="text-red-500 dark:text-red-400 font-semibold">
           Error: {currentProject ? "Project ID is missing" : "Project not found or ID is missing."}
         </p>
@@ -581,7 +605,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 bg-gradient-to-r from-gray-50 to-blue-50/30 dark:from-gray-800 dark:to-gray-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="ml-3">
+            <div className="ml-3 text-left">
               <div className="text-lg font-semibold text-gray-900 dark:text-white">{currentProject.name}</div>
               <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
                 Project Status:{" "}
@@ -602,7 +626,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
         </div>
 
         {unreadMessages.length > 0 && (
-          <div className="mt-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+          <div className="mt-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg text-left">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Unread Messages ({unreadMessages.length})
@@ -648,14 +672,13 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
         {Object.keys(groupedMessages).map((dateLabel) => (
           <div key={dateLabel}>
             <div className="text-center my-3">
-              <span className="inline-block bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs px-3 py-1 rounded-full shadow-md">
+              <span className="inline-block bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs px-3 py-1 rounded-full shadow-md font-medium">
                 {dateLabel}
               </span>
             </div>
             {groupedMessages[dateLabel].map((m: ChatMessage) => {
               const isSender = m.senderId === user.userId;
-              const senderName = isSender ? user.name : `Worker ${workerId}`;
-              const senderInitials = senderName?.[0] || "U";
+              const senderInitials = isSender ? user.name?.[0] || "Y" : "W";
 
               return (
                 <div
@@ -663,22 +686,22 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
                   className={`flex mb-4 ${isSender ? "justify-end" : "justify-start"}`}
                 >
                   {!isSender && (
-                    <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-white text-sm font-bold mr-2 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-white text-sm font-bold mr-2 flex-shrink-0 shadow-sm">
                       {senderInitials}
                     </div>
                   )}
-                  <div className={`max-w-[75%] flex flex-col ${isSender ? "items-end" : "items-start"}`}>
+                  <div className={`max-w-[75%] flex flex-col ${isSender ? "items-end text-right" : "items-start text-left"}`}>
                     <div
                       className={`p-3 rounded-xl text-sm ${
                         isSender
-                          ? "bg-blue-600 text-white rounded-br-sm"
-                          : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-sm"
+                          ? "bg-blue-600 text-white rounded-br-sm shadow-sm"
+                          : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-sm shadow-sm"
                       } ${m.uploading ? "opacity-70" : ""}`}
                     >
                       {m.uploading ? (
                         <div className="flex items-center text-xs">
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          Uploading {m.type === "voice" ? "Voice Note" : m.fileName}...{" "}
+                          Uploading {m.fileName}...{" "}
                           {Math.round(uploadProgress[m.id] || 0)}%
                         </div>
                       ) : (
@@ -726,15 +749,8 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
                               <audio
                                 src={m.content}
                                 controls
-                                className="mb-1"
-                                onLoadedMetadata={(e: React.SyntheticEvent<HTMLAudioElement>) => {
-                                  const duration = (e.target as HTMLAudioElement).duration;
-                                  const minutes = Math.floor(duration / 60);
-                                  const seconds = Math.floor(duration % 60).toString().padStart(2, "0");
-                                  (e.target as HTMLAudioElement).nextSibling!.textContent = `${minutes}:${seconds}`;
-                                }}
+                                className="mb-1 h-8 max-w-full"
                               />
-                              <span className="text-xs opacity-70">0:00</span>
                             </div>
                           )}
                           {m.type === "document" && (
@@ -758,93 +774,36 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
                                 <h4 className={`font-bold text-base ${isSender ? "text-white" : "text-gray-900 dark:text-white"}`}>
                                   {m.content.task_name || "Untitled Task"}
                                 </h4>
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getStatusStyles(m.content.parent_status)}`}>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyles(m.content.parent_status)}`}>
                                   {m.content.parent_status || "Unknown"}
                                 </span>
                               </div>
-                              <p className={`text-xs mb-3 ${isSender ? "text-blue-200" : "text-gray-600 dark:text-gray-400"}`}>
+                              <p className={`text-xs mb-3 ${isSender ? "text-blue-200" : "text-gray-600 dark:text-gray-400"} line-clamp-2`}>
                                 {m.content.task_description || "No description provided"}
                               </p>
-                              <div className={`grid grid-cols-2 gap-2 text-sm border-t pt-3 ${isSender ? "border-blue-500" : "border-gray-200 dark:border-gray-600"}`}>
-                                <div className="flex items-center">
-                                  <Clock className={`w-4 h-4 mr-2 ${isSender ? "text-blue-300" : "text-gray-500 dark:text-gray-400"}`} />
-                                  <span className={`font-medium ${isSender ? "text-blue-200" : "text-gray-500 dark:text-gray-400"}`}>Deadline:</span>
-                                  <span className={`ml-2 font-semibold ${isSender ? "text-white" : "text-gray-900 dark:text-white"}`}>
-                                    {formatTaskDate(m.content.task_deadline)}
-                                  </span>
+                              <div className={`flex justify-between text-[10px] font-bold uppercase pt-3 border-t ${isSender ? "border-white/20" : "border-gray-200 dark:border-gray-600"}`}>
+                                <div className="flex items-center gap-1">
+                                  <Clock size={12} className={isSender ? "text-blue-300" : "text-blue-500"} />
+                                  <span>{formatTaskDate(m.content.task_deadline)}</span>
                                 </div>
-                                <div className="flex items-center justify-end">
-                                  <Flag className={`w-4 h-4 mr-2 ${isSender ? "text-blue-300" : "text-gray-500 dark:text-gray-400"}`} />
-                                  <span className={`font-medium ${isSender ? "text-blue-200" : "text-gray-500 dark:text-gray-400"}`}>Priority:</span>
-                                  <span className={`ml-2 font-semibold px-2 py-0.5 rounded-full ${getPriorityStyles(m.content.task_priority)}`}>
-                                    {m.content.task_priority || "Unknown"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center col-span-2 justify-between">
-                                  <div className="flex items-center">
-                                    <ListChecks className={`w-4 h-4 mr-2 ${isSender ? "text-blue-300" : "text-gray-500 dark:text-gray-400"}`} />
-                                    <span className={`font-medium ${isSender ? "text-blue-200" : "text-gray-500 dark:text-gray-400"}`}>Subtasks:</span>
-                                  </div>
-                                  <span className={`font-semibold ${isSender ? "text-white" : "text-gray-900 dark:text-white"}`}>
-                                    {m.content.sub_tasks?.filter((sub: SubTask) => sub.status?.toLowerCase() === "completed").length || 0}
-                                    /{m.content.sub_tasks?.length || 0}
-                                  </span>
+                                <div className="flex items-center gap-1">
+                                  <Flag size={12} className={isSender ? "text-blue-300" : "text-red-500"} />
+                                  <span>{m.content.task_priority}</span>
                                 </div>
                               </div>
-                              {m.content.sub_tasks?.length > 0 && (
-                                <div className={`mt-3 pt-3 border-t ${isSender ? "border-blue-500" : "border-gray-200 dark:border-gray-600"}`}>
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className={`font-medium ${isSender ? "text-white" : "text-gray-700 dark:text-gray-300"}`}>
-                                      Subtasks ({m.content.sub_tasks.length})
-                                    </span>
-                                    <button
-                                      onClick={() => toggleSubtasks(m.id)}
-                                      className={`flex items-center gap-1 text-sm ${isSender ? "text-blue-200 hover:text-white" : "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"}`}
-                                    >
-                                      {showSubtasks[m.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                      {showSubtasks[m.id] ? "Hide" : "Show"}
-                                    </button>
-                                  </div>
-                                  {showSubtasks[m.id] && (
-                                    <ul className="space-y-1">
-                                      {m.content.sub_tasks
-                                        .sort((a: SubTask, b: SubTask) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
-                                        .map((sub: SubTask, idx: number) => (
-                                          <li
-                                            key={idx}
-                                            className={`text-xs flex justify-between items-center p-1 rounded ${isSender ? "bg-blue-700" : "bg-gray-100 dark:bg-gray-600"}`}
-                                          >
-                                            <span className={`${isSender ? "text-white" : "text-gray-800 dark:text-gray-200"}`}>{sub.title}</span>
-                                            <div className="flex space-x-2 text-xs">
-                                              <span className={`font-medium ${isSender ? "text-blue-200" : "text-gray-600 dark:text-gray-400"}`}>
-                                                {formatTaskDate(sub.due_date)}
-                                              </span>
-                                              <span className={`font-medium ${isSender ? "text-blue-200" : "text-gray-600 dark:text-gray-400"}`}>
-                                                {sub.status}
-                                              </span>
-                                            </div>
-                                          </li>
-                                        ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              )}
                             </div>
-                          )}
-                          {m.type === "task_card" && !m.content && (
-                            <div className="text-red-400">Error: Invalid task data</div>
                           )}
                         </>
                       )}
                     </div>
-                    <div className={`text-xs mt-1 ${isSender ? "text-right mr-1" : "text-left ml-1"} text-gray-500 dark:text-gray-400`}>
+                    <div className={`text-[10px] mt-1 opacity-60 dark:text-gray-100 font-medium ${isSender ? "text-right" : "text-left"}`}>
                       {m.createdAt && formatTime(m.createdAt)}
-                      {isSender && m.read && <span className="text-blue-500 ml-1">Seen</span>}
+                      {isSender && m.read && <span className="text-blue-500 ml-1 font-bold">Seen</span>}
                     </div>
                   </div>
                   {isSender && (
-                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold ml-2 flex-shrink-0">
-                      {user.name?.[0] || "Y"}
+                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold ml-2 flex-shrink-0 shadow-sm">
+                      {user.name?.[0]}
                     </div>
                   )}
                 </div>
@@ -855,29 +814,25 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
         <div ref={messagesEndRef} />
       </div>
 
-      {/* File Previews */}
-      {filePreviews.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700">
-          {filePreviews.map((preview, idx) => (
-            <div key={idx} className="relative p-2 border border-gray-300 dark:border-gray-500 rounded-lg flex items-center bg-white dark:bg-gray-600">
-              <button
-                onClick={() => removeFilePreview(idx)}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 z-10"
-              >
-                <X className="w-3 h-3" />
-              </button>
-              {preview.fileType === "image" && <FileIcon className="w-5 h-5 mr-2 text-blue-500" />}
-              {preview.fileType === "video" && <FileIcon className="w-5 h-5 mr-2 text-red-500" />}
-              {preview.fileType === "voice" && <Mic className="w-5 h-5 mr-2 text-green-500" />}
-              {preview.fileType === "document" && <Paperclip className="w-5 h-5 mr-2 text-gray-500" />}
-              <span className="text-sm text-gray-700 dark:text-gray-300 max-w-[150px] truncate">{preview.fileName}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Input Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 bg-white dark:bg-gray-800">
+        {filePreviews.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700">
+            {filePreviews.map((preview, idx) => (
+              <div key={idx} className="relative p-2 border border-gray-300 dark:border-gray-500 rounded-lg flex items-center bg-white dark:bg-gray-600">
+                <button
+                  onClick={() => removeFilePreview(idx)}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 z-10 shadow-sm"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <FileIcon className="w-4 h-4 mr-2 text-blue-500" />
+                <span className="text-xs text-gray-700 dark:text-gray-300 max-w-[150px] truncate">{preview.fileName}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="relative flex items-end space-x-2">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -887,15 +842,13 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
           </button>
 
           {showEmojiPicker && (
-            <div className="absolute bottom-full mb-2 z-10 left-0">
+            <div className="absolute bottom-full mb-2 z-10 left-0 shadow-2xl">
               <EmojiPicker
                 onEmojiClick={(e) => {
                   setInput((prev) => prev + e.emoji);
                 }}
                 height={350}
                 width={300}
-                lazyLoad
-                searchDisabled
                 theme={theme}
               />
             </div>
@@ -907,8 +860,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
             onChange={handleFileSelect}
             multiple
             className="hidden"
-            id="file-input"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+            id="project-file-input"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -921,41 +873,35 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-all duration-200 h-12 overflow-y-hidden bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 resize-none focus:ring-1 focus:ring-blue-500 transition-all duration-200 h-12 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
             placeholder="Type a message..."
             disabled={isSending || isRecording}
-            rows={1}
-            style={{ minHeight: "48px", maxHeight: "150px" }}
           />
 
-          {(input.trim() === "" && filePreviews.length === 0) && (
-            <button
-              onClick={handleMicClick}
-              className={`p-3 rounded-xl transition-colors ${
-                isRecording ? "bg-red-500 text-white hover:bg-red-600" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-              }`}
-              disabled={isSending}
-            >
-              {isRecording ? <Mic className="w-6 h-6 fill-white" /> : <Mic className="w-6 h-6" />}
-            </button>
-          )}
+          <button
+            onClick={handleMicClick}
+            className={`p-3 rounded-xl transition-all ${
+              isRecording ? "bg-red-500 text-white animate-pulse" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+            }`}
+            disabled={isSending}
+          >
+            <Mic className={`w-6 h-6 ${isRecording ? "fill-white" : ""}`} />
+          </button>
 
-          {(input.trim() !== "" || filePreviews.length > 0) && (
-            <button
-              onClick={sendMessage}
-              className={`p-3 rounded-xl transition-colors text-white ${
-                isSending ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-              }`}
-              disabled={isSending}
-            >
-              {isSending ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
-            </button>
-          )}
+          <button
+            onClick={sendMessage}
+            className={`p-3 rounded-xl transition-all text-white ${
+              isSending ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+            disabled={isSending}
+          >
+            {isSending ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
+          </button>
 
           {isRecording && (
             <button
               onClick={cancelRecording}
-              className="p-3 rounded-xl bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors ml-2"
+              className="p-3 rounded-xl bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 transition-colors ml-2"
             >
               <X className="w-6 h-6" />
             </button>
@@ -965,49 +911,50 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
 
       {/* Media Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4">
           <button
             onClick={() => setIsModalOpen(false)}
-            className="absolute top-4 right-4 text-white text-3xl font-bold z-10 hover:text-gray-300"
+            className="absolute top-6 right-6 text-white text-3xl hover:text-gray-300 transition-colors"
           >
-            <X className="w-8 h-8" />
+            <X size={32} />
           </button>
 
           {mediaList.length > 1 && (
             <>
               <button
                 onClick={() => setCurrentMediaIndex((prev) => (prev - 1 + mediaList.length) % mediaList.length)}
-                className="absolute left-4 text-white text-5xl opacity-75 hover:opacity-100 z-10 p-4"
+                className="absolute left-4 text-white text-5xl opacity-75 hover:opacity-100 p-4 transition-all"
               >
                 ‹
               </button>
               <button
                 onClick={() => setCurrentMediaIndex((prev) => (prev + 1) % mediaList.length)}
-                className="absolute right-4 text-white text-5xl opacity-75 hover:opacity-100 z-10 p-4"
+                className="absolute right-4 text-white text-5xl opacity-75 hover:opacity-100 p-4 transition-all"
               >
                 ›
               </button>
             </>
           )}
 
-          <div className="relative max-w-4xl max-h-[80vh] w-full flex flex-col items-center">
+          <div className="relative max-w-5xl max-h-[85vh] w-full flex flex-col items-center">
             {mediaList[currentMediaIndex].type === "image" ? (
               <Image
                 src={mediaList[currentMediaIndex].content || "/fallback-image.png"}
-                alt={mediaList[currentMediaIndex].fileName || "Media"}
+                alt={mediaList[currentMediaIndex].fileName}
                 width={1200}
                 height={800}
-                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
               />
             ) : (
               <video
                 src={mediaList[currentMediaIndex].content}
                 controls
-                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                autoPlay
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
               />
             )}
-            <div className="mt-4 text-white text-sm">{mediaList[currentMediaIndex].fileName}</div>
-            <div className="text-gray-400 text-xs">
+            <div className="mt-4 text-white font-medium">{mediaList[currentMediaIndex].fileName}</div>
+            <div className="text-gray-400 text-sm">
               {currentMediaIndex + 1} / {mediaList.length}
             </div>
           </div>
