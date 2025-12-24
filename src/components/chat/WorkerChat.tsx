@@ -521,7 +521,7 @@ const WorkerChat = () => {
   };
 
   return (
-    <div className="flex w-full h-[calc(100vh-70px)] md:h-[600px] bg-white text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-hidden md:rounded-xl shadow-lg border border-gray-200 dark:border-gray-800">
+    <div className="flex w-full h-[calc(100vh-70px)] md:h-[600px] bg-white text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-hidden  shadow-lg border border-gray-200 dark:border-gray-800">
       
       {/* Sidebar - Hidden on mobile when chat is active */}
       <aside className={`w-full md:w-80 flex-col bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-800 dark:to-gray-900 border-r border-gray-200 dark:border-gray-700 custom-scrollbar ${activeChat ? 'hidden md:flex' : 'flex'}`}>
