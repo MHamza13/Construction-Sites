@@ -1,5 +1,5 @@
 {
-"rewrites": [
+  "rewrites": [
     {
       "source": "/api/pdf/:path*",
       "destination": "https://salmanfarooq1-001-site1.jtempurl.com/:path*"
@@ -22,11 +22,11 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://salmanfarooq1-001-site1.jtempurl.com"
+          "value": "*"
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-src 'self' https://salmanfarooq1-001-site1.jtempurl.com; img-src 'self' https://salmanfarooq1-001-site1.jtempurl.com https://ui-avatars.com  data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org  https://unpkg.com  https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;"
+          "value": "default-src 'self'; frame-src 'self' https: data: blob:; img-src 'self' https://salmanfarooq1-001-site1.jtempurl.com https://ui-avatars.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data: blob:; child-src 'self' https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
         }
       ]
     }
