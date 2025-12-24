@@ -411,16 +411,6 @@ export default function ViewInvoiceModal({
                                           </span>
                                         </div>
                                       </div>
-
-                                      {/* Individual Shift Pay */}
-                                      <div className="flex justify-between mt-2 pt-2 border-t border-dashed border-gray-300 dark:border-gray-600">
-                                        <span className="font-medium text-gray-700 dark:text-gray-300">
-                                          Pay for this shift:
-                                        </span>
-                                        <span className="font-bold text-green-600 dark:text-green-400">
-                                          €{shiftPay.toFixed(2)}
-                                        </span>
-                                      </div>
                                     </div>
                                   );
                                 })}
