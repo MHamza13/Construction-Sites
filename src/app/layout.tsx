@@ -11,13 +11,13 @@ const outfit = Outfit({
 
 // PWA Metadata and Manifest
 export const metadata: Metadata = {
-  title: "My App Name",
-  description: "My App Description",
-  manifest: "/manifest.json", // PWA File Link
+  title: "RBS",
+  description: "RBS - construction management system",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "My App Name",
+    title: "RBS",
   },
   formatDetection: {
     telephone: false,

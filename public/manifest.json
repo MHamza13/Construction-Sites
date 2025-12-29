@@ -1,7 +1,7 @@
 {
-  "name": "Meri App",
-  "short_name": "App",
-  "description": "Next.js Mobile App",
+  "name": "RBS",
+  "short_name": "RBS",
+  "description": "RBS - construction management system",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

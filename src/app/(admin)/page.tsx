@@ -6,8 +6,8 @@ import ProjectUnredComments from "@/components/dashboard/ProjectUnredComments";
 
 export const metadata: Metadata = {
   title:
-    "Next.js E-commerce Dashboard | TailAdmin - Next.js Dashboard Template",
-  description: "This is Next.js Home for TailAdmin Dashboard Template",
+    "RBS - Admin Dashboard",
+  description: "Admin dashboard for RBS - construction management system",
 };
 
 export default function Ecommerce() {
