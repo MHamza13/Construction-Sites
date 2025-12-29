@@ -5,7 +5,8 @@ const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development", // Dev mode me disable rahe
+  // 👇 Yahan change kiya hai taake Dev mode mein bhi files banen
+  disable: false, 
 });
 
 const nextConfig: NextConfig = {
@@ -19,7 +20,6 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // Next.js 15+ ke liye top-level config (Experimental se bahar)
   serverExternalPackages: ["sharp"],
 
   // Webpack config for SVGR
@@ -52,7 +52,7 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    unoptimized: true, // PWA/Static export ke liye zaroori
+    unoptimized: true, 
     remotePatterns: [
       {
         protocol: "https",
@@ -64,5 +64,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-// PWA wrapper ke sath config export
 export default withPWA(nextConfig);
