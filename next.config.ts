@@ -6,7 +6,8 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   // 👇 Yahan change kiya hai taake Dev mode mein bhi files banen
-  disable: false, 
+//  disable: process.env.NODE_ENV === "development", 
+ disable: false, 
 });
 
 const nextConfig: NextConfig = {
