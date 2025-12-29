@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+// PWA Plugin Initialize
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === "development", // Dev mode me disable rahe
+});
+
 const nextConfig: NextConfig = {
   // TypeScript errors ignore karne ke liye
   typescript: {
@@ -11,15 +19,10 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // Next.js 16 mein 'serverComponentsExternalPackages' ab bahar aa gaya hai
+  // Next.js 15+ ke liye top-level config (Experimental se bahar)
   serverExternalPackages: ["sharp"],
 
-  // Turbopack ke liye SVG support (Naya tarika)
-   experimental: {
-    serverComponentsExternalPackages: ["sharp"],
-  },
-
-  // Webpack support (Jab aap build --webpack use karein)
+  // Webpack config for SVGR
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/i,
@@ -49,7 +52,7 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    unoptimized: false,
+    unoptimized: true, // PWA/Static export ke liye zaroori
     remotePatterns: [
       {
         protocol: "https",
@@ -61,4 +64,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// PWA wrapper ke sath config export
+export default withPWA(nextConfig);
