@@ -258,7 +258,7 @@ const ProjectWorkerDetails = () => {
                 </span>
               )}
             </div>
-            <div className="flex justify-start space-x-8 pt-2">
+            <div className="grid grid-cols-2 gap-4 pt-2 md:grid-cols-4 md:gap-8">
               <StatBox value={workerProfile.totalHours} label="Total Hours" />
               <StatBox value={workerProfile.checkIns} label="Check-Ins" />
               <StatBox value={workerProfile.lastCheckIn} label="Last Check-In" />
