@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import EditWorkerModal from "@/components/worker/EditWorkerModal";
 import type { Worker } from "@/redux/worker/workerSlice";
-import { FaEuroSign } from "react-icons/fa";
 
 interface WorkersListProps {
   workers: Worker[];
@@ -105,7 +104,6 @@ export default function WorkersList({
         header: "Daily Wage",
         cell: ({ row }) => (
           <div className="flex items-center my-3 text-sm text-gray-700 dark:text-gray-300">
-            <FaEuroSign className="w-4 h-4 mr-1 text-gray-400 dark:text-gray-500" />
             €{row.original.dailyWages}
           </div>
         ),
