@@ -5,10 +5,10 @@ const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
-    importScripts: ['/custom-sw.js'], 
+  importScripts: ['/custom-sw.js'], 
   // 👇 Yahan change kiya hai taake Dev mode mein bhi files banen
-//  disable: process.env.NODE_ENV === "development", 
- disable: false, 
+  disable: process.env.NODE_ENV === "development", 
+//  disable: false, 
 });
 
 const nextConfig: NextConfig = {

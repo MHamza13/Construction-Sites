@@ -375,10 +375,11 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
               read: false,
             });
 
-            // Notification for File
+            // Notification for File - UPDATED WITH PROJECT ID
             const notificationPayload = {
               userId: Number(workerId) || 0,
               type: "chat",
+              projectId: Number(projectId) || 0, // Added Project ID
               title: `Attachment in ${currentProject?.name}`,
               body: `${user.name} sent a file.`,
               senderID: Number(user.userId) || 0,
@@ -418,10 +419,11 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
           read: false,
         });
 
-        // --- SEND NOTIFICATION TO WORKER ---
+        // --- SEND NOTIFICATION TO WORKER - UPDATED WITH PROJECT ID ---
         const notificationPayload = {
           userId: Number(workerId) || 0,
           type: "chat",
+          projectId: Number(projectId) || 0,
           title: `Project Chat: ${currentProject?.name}`,
           body: messageBody.length > 60 ? messageBody.substring(0, 60) + "..." : messageBody,
           senderID: Number(user.userId) || 0,

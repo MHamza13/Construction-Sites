@@ -3,8 +3,8 @@ self.addEventListener('push', function (event) {
 
   const options = {
     body: data.body,
-    icon: '/icons/icon-192x192.png', // Apna icon path check karein
-    badge: '/icons/badge.png',
+    icon: '/images/icon-192x192.png', 
+    badge: '/images/badge.png',
     
     // Sound aur Vibration logic
     vibrate: [200, 100, 200],

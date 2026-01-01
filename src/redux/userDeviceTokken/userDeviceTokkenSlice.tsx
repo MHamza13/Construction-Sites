@@ -82,7 +82,7 @@ export const sendNotificationToUser = createAsyncThunk<
   SendNotificationPayload,
   { rejectValue: string; state: RootState }
 >("userDeviceToken/send", async (notificationData, { rejectWithValue, getState }) => {
-  const { userId, title, body, senderID , type } = notificationData;
+  const { userId, title, body, senderID , type , projectId } = notificationData;
 
   // Body mein bhi userId bhejo (agar backend expect karta hai)
   const requestBody = {
@@ -90,6 +90,7 @@ export const sendNotificationToUser = createAsyncThunk<
     userId,       
     title,
     body,
+    projectId,
     senderID,
   };
 
