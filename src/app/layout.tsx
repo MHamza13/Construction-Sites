@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import ClientLayout from '@/layout/ClientLayout';
 import { ReduxProvider } from '@/redux/providers';
 import type { Metadata, Viewport } from "next";
+import PushNotificationInit from '@/layout/PushNotificationInit';
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className={`${outfit.className} dark:bg-gray-900`}>
         <ReduxProvider>
           <ThemeProvider>
+          <PushNotificationInit/>
             <ClientLayout>
               {children}
             </ClientLayout>

@@ -5,15 +5,15 @@ import React from "react";
 const page = () => {
   return (
     <main className="min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <Banner
+      <div className="mx-auto">
+        {/* <Banner
           title="Team Chat"
           subtitle="Communicate with your team members"
           breadcrumb={[{ label: "Home", href: "#" }, { label: "Project" }]}
-        />
+        /> */}
 
         {/* Chat Component */}
-        <div className="bg-white shadow-sm overflow-hidden">
+        <div className="bg-white shadow-sm min-h-screen overflow-hidden">
           <WorkerChat />
         </div>
       </div>
