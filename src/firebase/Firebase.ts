@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { Capacitor } from "@capacitor/core"; // 👈 Ye import karein
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,62 +16,41 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// ✅ Initialize Messaging (browser only)
-export const messaging =
-  typeof window !== "undefined" ? getMessaging(app) : null;
+// Messaging initialize sirf Web par karein
+export const messaging = (typeof window !== "undefined" && !Capacitor.isNativePlatform()) 
+  ? getMessaging(app) 
+  : null;
 
-// ✅ Function to get FCM Token
 export const getFCMToken = async () => {
-  if (typeof window === "undefined") {
-    console.warn("❌ Window is undefined (server-side)");
-    return "no-token";
+  // 🛑 AGAR ANDROID/iOS HAI TO YAHAN SE WAPAS CHALE JAYEIN
+  if (Capacitor.isNativePlatform()) {
+    console.log("📱 Mobile Platform detected: Skipping Web FCM logic.");
+    return "mobile-native-mode";
   }
 
+  if (typeof window === "undefined") return "no-token";
+
   try {
+    // Ye code ab sirf browser/web par chalega
     console.log("🪄 Registering Service Worker...");
-    const registration = await navigator.serviceWorker.register(
-      "/firebase-messaging-sw.js"
-    );
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
 
-    console.log("✅ Service Worker registered:", registration);
-
-    console.log("🔔 Requesting Notification permission...");
     const permission = await Notification.requestPermission();
-    console.log("🔔 Permission:", permission);
+    if (permission !== "granted") return "no-token";
 
-    if (permission !== "granted") {
-      console.warn("❌ Notification permission denied");
-      return "no-token";
-    }
+    if (!messaging) return "no-token";
 
-    console.log("🎯 Getting FCM token...");
-    const token = await getToken(messaging!, {
+    const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: registration,
     });
 
-    if (!token) {
-      console.warn("⚠️ No token generated.");
-      return "no-token";
-    }
-
-    console.log("🔥 Successfully generated FCM token:", token);
-    return token;
+    return token || "no-token";
   } catch (error) {
-    console.error("❌ Error while generating FCM token:", error);
+    console.error("❌ Web FCM Error:", error);
     return "no-token";
   }
-};
-
-
-// ✅ Optional: Listen to foreground messages
-export const listenToForegroundMessages = () => {
-  if (!messaging) return;
-  onMessage(messaging, (payload) => {
-    console.log("📬 Foreground message received:", payload);
-  });
 };
