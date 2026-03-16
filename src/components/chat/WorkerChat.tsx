@@ -34,6 +34,7 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/firebase/Firebase";
 import Image from "next/image";
+import Link from "next/link";
 
 // -------- Helper functions --------
 // AAPKI REQUEST KE MUTABIQ ISKO CHANGE NAHI KIYA GAYA
@@ -304,7 +305,13 @@ const WorkerChat = () => {
       {/* Sidebar */}
       <aside className={`w-full md:w-80 flex-col bg-gray-50 dark:bg-gray-800/50 border-r border-gray-200 dark:border-gray-700 ${activeChat ? "hidden md:flex" : "flex"}`}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800">
+        
+          <div className="flex items-center gap-2">
+            <Link href="/"  className="p-1 rounded-lg hover:bg-gray-100">
+                <ChevronLeft size={24} />
+              </Link>
           <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Team Chat</h3>
+          </div>
           <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
             {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
           </button>
