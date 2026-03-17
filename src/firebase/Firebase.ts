@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getMessaging, getToken, onMessage, Messaging } from "firebase/messaging";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Capacitor } from "@capacitor/core";
 
 const firebaseConfig = {
@@ -14,45 +14,68 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase (Avoid duplicate initialization)
+// Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 export const getFCMToken = async () => {
   try {
-    // 1. Check if Mobile
+    // 1. Mobile Check
     if (Capacitor.isNativePlatform()) {
-      console.log("📱 Mobile Platform: Use Capacitor Push Notifications plugin instead.");
       return "mobile-native-mode";
     }
 
-    // 2. Check if SSR (Server Side Rendering)
-    if (typeof window === "undefined") return "no-token";
+    // 2. Browser/SSR Check
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      return "no-token";
+    }
 
-    // 4. Register Service Worker
-    // Make sure 'firebase-messaging-sw.js' is in your /public folder
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-    console.log("🪄 Service Worker registered with scope:", registration.scope);
+    // 3. Check Notification Permission (Bina permission ke token mil hi nahi sakta)
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
 
-    // 5. Get Messaging Instance
+    if (permission !== "granted") {
+      console.warn("❌ Notification permission denied");
+      return "permission-denied";
+    }
+
+    // 4. Register Service Worker and Wait for it
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+      scope: "/",
+    });
+    
+    // Wait for the service worker to be ready
+    await navigator.serviceWorker.ready;
+
+    // 5. Get Messaging & Token
     const messaging = getMessaging(app);
-
-    // 6. Get Token
     const token = await getToken(messaging, {
-      vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+      vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY, // Ensure this is in Vercel Env
       serviceWorkerRegistration: registration,
     });
 
     if (token) {
-      console.log("✅ Web FCM Token:", token);
+      console.log("✅ FCM Token Generated:", token);
       return token;
     } else {
-      console.warn("⚠️ No registration token available. Request permission to generate one.");
-      return "no-token";
+      return "no-token-available";
     }
   } catch (error) {
-    console.error("❌ Web FCM Error detailed:", error);
+    console.error("❌ FCM Error Details:", error);
     return "error-getting-token";
   }
 };
+
+// Foreground message listener (Optional)
+export const onMessageListener = () =>
+  new Promise((resolve) => {
+    if (typeof window !== "undefined" && !Capacitor.isNativePlatform()) {
+      const messaging = getMessaging(app);
+      onMessage(messaging, (payload) => {
+        resolve(payload);
+      });
+    }
+  });
