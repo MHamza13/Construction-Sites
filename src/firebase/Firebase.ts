@@ -30,13 +30,6 @@ export const getFCMToken = async () => {
     // 2. Check if SSR (Server Side Rendering)
     if (typeof window === "undefined") return "no-token";
 
-    // 3. Request Permission
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-      console.error("❌ Notification permission denied.");
-      return "permission-denied";
-    }
-
     // 4. Register Service Worker
     // Make sure 'firebase-messaging-sw.js' is in your /public folder
     const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
