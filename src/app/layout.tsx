@@ -10,7 +10,6 @@ const outfit = Outfit({
   subsets: ["latin"],
 });
 
-// PWA Metadata and Manifest
 export const metadata: Metadata = {
   title: "RBS",
   description: "RBS - construction management system",
@@ -25,12 +24,14 @@ export const metadata: Metadata = {
   },
 };
 
-// Mobile Viewport Settings (Zoom disable etc)
+// --- YAHAN CHANGES HAIN ---
 export const viewport: Viewport = {
-  themeColor: "#000000", // Status bar color
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -39,11 +40,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+    <html lang="en" suppressHydrationWarning>
+   
+      <body className={`${outfit.className} dark:bg-gray-900 antialiased`}>
         <ReduxProvider>
           <ThemeProvider>
-          <PushNotificationInit/>
+            <PushNotificationInit/>
             <ClientLayout>
               {children}
             </ClientLayout>
