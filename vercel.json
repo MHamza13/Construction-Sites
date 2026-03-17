@@ -1,22 +1,26 @@
 {
-"rewrites": [
-{
-"source": "/api/pdf/:path*",
-"destination": "https://salmanfarooq1-001-site1.jtempurl.com/:path*"
-},
-{
-"source": "/:path*",
-"has": [
-{
-"type": "header",
-"key": "accept",
-"value": "text/html"
-}
-],
-"destination": "/index.html"
-}
-],
-"headers": [
+  "rewrites": [
+    {
+      "source": "/api/pdf/:path*",
+      "destination": "https://salmanfarooq1-001-site1.jtempurl.com/:path*"
+    },
+    {
+      "source": "/firebase-messaging-sw.js",
+      "destination": "/firebase-messaging-sw.js"
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": "text/html"
+        }
+      ],
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
 {
 "source": "/(.)",
 "headers": [
