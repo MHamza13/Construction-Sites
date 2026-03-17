@@ -5,34 +5,34 @@ import { RootState } from "../store";
 /** API Base */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
-/** Types */
+/** Interfaces */
 interface UserDeviceTokenState {
   loading: boolean;
   success: boolean;
   error: string | null;
 }
 
-// Generic API response type
 interface ApiResponse {
   message?: string;
   data?: unknown;
 }
 
-// Payload type for registerUserDeviceToken
+// Register Token ke liye Payload
 interface RegisterDeviceTokenPayload {
-  userId: string;
+  userId: string | number;
   deviceToken: string;
   platform: string;
   deviceName: string;
 }
 
-// 🚀 NEW: Payload type for sending a notification
+// Notification bhejne ke liye Payload (Corrected with projectId)
 interface SendNotificationPayload {
   userId: number | string;
   title: string;
   body: string;
   senderID: number | string;
   type: string;
+  projectId: number | string; // 👈 Add kiya gaya
 }
 
 /** Initial State */
@@ -42,6 +42,7 @@ const initialState: UserDeviceTokenState = {
   error: null,
 };
 
+/** Auth Header Helper */
 const getAuthHeader = (getState: () => RootState) => {
   const token = getState().auth?.token;
   return {
@@ -53,6 +54,7 @@ const getAuthHeader = (getState: () => RootState) => {
   };
 };
 
+/** 1. Register User Device Token */
 export const registerUserDeviceToken = createAsyncThunk<
   ApiResponse,
   RegisterDeviceTokenPayload,
@@ -72,22 +74,21 @@ export const registerUserDeviceToken = createAsyncThunk<
         err.response?.data?.message ?? err.message ?? "Registration failed"
       );
     }
-    if (err instanceof Error) return rejectWithValue(err.message);
     return rejectWithValue("Registration failed");
   }
 });
 
+/** 2. Send Notification to User */
 export const sendNotificationToUser = createAsyncThunk<
   ApiResponse,
   SendNotificationPayload,
   { rejectValue: string; state: RootState }
 >("userDeviceToken/send", async (notificationData, { rejectWithValue, getState }) => {
-  const { userId, title, body, senderID , type , projectId } = notificationData;
+  const { userId, title, body, senderID, type, projectId } = notificationData;
 
-  // Body mein bhi userId bhejo (agar backend expect karta hai)
   const requestBody = {
     type,
-    userId,       
+    userId,
     title,
     body,
     projectId,
@@ -97,23 +98,22 @@ export const sendNotificationToUser = createAsyncThunk<
   try {
     const config = getAuthHeader(getState);
     const response = await axios.post(
-      `${API_BASE}/UserDeviceToken/send/${userId}`, // path param
-      requestBody, // body mein bhi userId
+      `${API_BASE}/UserDeviceToken/send/${userId}`, // Path parameter
+      requestBody, // JSON Body
       config
     );
     return response.data as ApiResponse;
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
       return rejectWithValue(
-        err.response?.data?.message ?? err.message ?? "Send failed"
+        err.response?.data?.message ?? err.message ?? "Send notification failed"
       );
     }
-    if (err instanceof Error) return rejectWithValue(err.message);
     return rejectWithValue("Send failed");
   }
 });
 
-/** ✅ Slice */
+/** ✅ Slice Logic */
 const userDeviceTokenSlice = createSlice({
   name: "userDeviceToken",
   initialState,
@@ -126,7 +126,7 @@ const userDeviceTokenSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      /** 🔹 Register Token */
+      /** Register Token Cases */
       .addCase(registerUserDeviceToken.pending, (state) => {
         state.loading = true;
         state.success = false;
@@ -136,12 +136,12 @@ const userDeviceTokenSlice = createSlice({
         state.loading = false;
         state.success = true;
       })
-      .addCase(registerUserDeviceToken.rejected, (state, action: PayloadAction<string | undefined>) => {
+      .addCase(registerUserDeviceToken.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload ?? "Registration failed";
       })
 
-      /** 🔹 Send Notification */
+      /** Send Notification Cases */
       .addCase(sendNotificationToUser.pending, (state) => {
         state.loading = true;
         state.success = false;
@@ -151,9 +151,9 @@ const userDeviceTokenSlice = createSlice({
         state.loading = false;
         state.success = true;
       })
-      .addCase(sendNotificationToUser.rejected, (state, action: PayloadAction<string | undefined>) => {
+      .addCase(sendNotificationToUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload ?? "Send failed";
+        state.error = action.payload ?? "Send notification failed";
       });
   },
 });
