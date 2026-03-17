@@ -3,10 +3,11 @@ import { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.RBS.app',
   appName: 'RBS',
-  webDir: 'out', // Next.js static export folder
-  server: {
+  webDir: '.next', 
+   server: {
     url: 'https://construction-sites.vercel.app',
-    cleartext: true
+    cleartext: true,
+    allowNavigation: ['*']
   },
   plugins: {
     PushNotifications: {

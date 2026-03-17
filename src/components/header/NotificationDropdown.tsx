@@ -97,7 +97,7 @@ export default function NotificationDropdown() {
     );
 
     return () => unsubscribe();
-  }, [workers]); // ✅ re-run if workers list updates
+  }, [workers]); 
 
   // Mark all as read
   const markAllAsRead = async () => {
@@ -121,7 +121,7 @@ export default function NotificationDropdown() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Get worker info + initials avatar
+  // Get worker info
   const getWorkerInfo = (SenderID?: number) => {
     const worker = workers.find((w) => w.id === SenderID);
     if (!worker) return { name: "Unknown", initials: "?", image: null };
@@ -140,17 +140,17 @@ export default function NotificationDropdown() {
       {/* --- Bell Icon --- */}
       <button
         onClick={handleClick}
-        className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-10 w-10 md:h-11 md:w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
       >
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-red-500 text-[10px] md:text-xs font-bold text-white ring-2 ring-white dark:ring-gray-900">
             {unreadCount}
           </span>
         )}
         <svg
           className="fill-current"
-          width="20"
-          height="20"
+          width="18"
+          height="18"
           viewBox="0 0 20 20"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -167,27 +167,29 @@ export default function NotificationDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute left-[0px] md:left-auto md:right-[0px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
+        // Fixed positioning for mobile to keep it on the left/screen-center, and absolute for desktop
+        className="fixed left-4 right-4 md:absolute md:left-auto md:right-0 mt-3 flex h-[450px] w-auto md:w-[360px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark lg:right-0 z-[999]"
       > 
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
-          <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-gray-700">
+          <h5 className="text-sm md:text-base font-bold text-gray-800 dark:text-gray-200">
             Notifications
           </h5>
           <button
             onClick={closeDropdown}
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 p-1"
           >
-            ✕
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
         {/* Notifications List */}
         <ul className="flex flex-col h-full overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <p className="text-center text-gray-500 dark:text-gray-400">
-              Loading...
-            </p>
+            <div className="flex flex-col items-center justify-center h-full space-y-2">
+               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+               <p className="text-xs text-gray-500">Loading...</p>
+            </div>
           ) : notifications.length > 0 ? (
             notifications.map((n) => {
               const { name, initials, image } = getWorkerInfo(n.SenderID);
@@ -195,20 +197,20 @@ export default function NotificationDropdown() {
                 <li key={n.id}>
                   <DropdownItem
                     onItemClick={closeDropdown}
-                    className={`flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5 ${
-                      !n.read ? "bg-blue-50 dark:bg-blue-900/30" : ""
+                    className={`flex gap-3 rounded-lg border-b border-gray-50 p-2.5 md:p-3 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5 transition-colors ${
+                      !n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""
                     }`}
                   >
                     {/* Avatar */}
-                    <div className="relative w-10 h-10 flex-shrink-0">
+                    <div className="relative w-9 h-9 md:w-10 md:h-10 flex-shrink-0">
                       {image ? (
                         <img
                           src={image}
                           alt={name}
-                          className="w-full h-full rounded-full object-cover ring-2 ring-white dark:ring-gray-700"
+                          className="w-full h-full rounded-full object-cover ring-1 ring-gray-100 dark:ring-gray-700"
                         />
                       ) : (
-                        <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-br from-blue-500 to-indigo-600">
+                        <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br from-blue-500 to-indigo-600">
                           {initials}
                         </div>
                       )}
@@ -216,26 +218,21 @@ export default function NotificationDropdown() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-900 dark:text-white truncate">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="font-bold text-xs md:text-sm text-gray-900 dark:text-white truncate">
                           {n.title}
                         </span>
                         {!n.read && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-300">
-                            New
-                          </span>
+                          <span className="h-2 w-2 rounded-full bg-blue-600 flex-shrink-0"></span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        by{" "}
-                        <span className="font-medium text-gray-800 dark:text-gray-200">
-                          {name}
-                        </span>
+                      <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        From: <span className="font-semibold text-gray-700 dark:text-gray-200">{name}</span>
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                      <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 leading-relaxed">
                         {n.body}
                       </p>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5 block italic">
                         {formatTimeAgo(n.sentAt)}
                       </span>
                     </div>
@@ -244,12 +241,30 @@ export default function NotificationDropdown() {
               );
             })
           ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400">
-              No notifications found.
-            </p>
+            <div className="flex flex-col items-center justify-center h-full text-center p-4">
+              <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium">
+                No new notifications.
+              </p>
+            </div>
           )}
         </ul>
       </Dropdown>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #374151;
+        }
+      `}</style>
     </div>
   );
 }

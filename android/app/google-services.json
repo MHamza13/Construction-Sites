@@ -1,0 +1,28 @@
+{
+  "project_info": {
+    "project_number": "921335062536",
+    "project_id": "workly-e9a30",
+    "storage_bucket": "workly-e9a30.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921335062536:android:922a20ed69f395b695b1bd",
+        "android_client_info": {
+          "package_name": "com.RBS.app"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOwRSUMtT8HRzZHnjpUaNi4_6n0HJYt1E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

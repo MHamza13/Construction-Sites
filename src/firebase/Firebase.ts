@@ -46,7 +46,7 @@ export const getFCMToken = async () => {
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: registration,
-    });
+    }); 
 
     return token || "no-token";
   } catch (error) {
