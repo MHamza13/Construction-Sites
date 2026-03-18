@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications } from "@capacitor/push-notifications";
+import { PushNotifications, Importance, Visibility } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications"; 
 import { db, auth } from "@/firebase/Firebase"; 
 import { doc, setDoc } from "firebase/firestore";
@@ -16,51 +16,52 @@ export default function PushNotificationInit() {
         try {
           // 1. Android Channel Setup
           if (Capacitor.getPlatform() === 'android') {
-            await PushNotifications.createChannel({
+            const channelConfig = {
               id: 'fcm_default_channel', 
-              name: 'RBS Updates',
+              name: 'RBS', // Aapki request ke mutabiq sirf RBS
               description: 'Critical notifications for RBS app',
-              importance: 5,    
-              visibility: 1,    
+              importance: 5 as Importance, // Type casting se error solve ho jayega
+              visibility: 1 as Visibility,    
               vibration: true,  
-              sound: 'jackhammer', // 👈 Extension (.mp3) mat likhein yahan
-            });
+              sound: 'jackhammer', 
+            };
+
+            await PushNotifications.createChannel(channelConfig);
+            await LocalNotifications.createChannel(channelConfig);
           }
 
-          // 2. Presentation Options (Foreground mein bar dikhane ke liye)
-          await PushNotifications.setPresentationOptions({
+          // 2. Presentation Options
+            await (PushNotifications as any).setPresentationOptions({
             presentationOptions: ["badge", "sound", "alert"],
           });
 
-          // 3. Register & Permissions
+          // 3. Permissions & Registration
           let permStatus = await PushNotifications.requestPermissions();
           if (permStatus.receive === "granted") {
             await PushNotifications.register();
           }
 
-          // 4. Foreground Listener (App khuli ho tab bhi bar dikhaye)
+          // 4. Foreground Listener
           PushNotifications.addListener("pushNotificationReceived", async (notification) => {
-            console.log("Push Received:", notification);
+            console.log("Push Received in Foreground:", notification);
 
-            // Local Notification trigger karein taake bar mein show ho
             await LocalNotifications.schedule({
               notifications: [
                 {
-                  title: notification.title || "RBS Update",
+                  title: notification.title || "",
                   body: notification.body || "",
-                  id: Math.floor(Math.random() * 10000), // Unique ID
+                  id: Math.floor(Math.random() * 10000),
                   channelId: 'fcm_default_channel',
                   smallIcon: 'ic_launcher', 
-                  // Sound file check karein res/raw mein honi chahiye
-                  sound: Capacitor.getPlatform() === 'android' ? 'jackhammer' : 'jackhammer.mp3'
+                  sound: 'jackhammer.mp3' 
                 }
               ]
             });
           });
 
-          // Token Saving
+          // 5. Token Saving to Firestore
           PushNotifications.addListener("registration", async (token) => {
-            console.log("Device Token:", token.value); // 👈 Isay console mein check karein
+            console.log("Device Token:", token.value);
             const userRef = doc(db, "users", userId); 
             await setDoc(userRef, {
               fcmToken: token.value,
