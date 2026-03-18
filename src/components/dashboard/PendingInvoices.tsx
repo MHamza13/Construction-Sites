@@ -141,17 +141,6 @@ const columns = [
     ),
   }),
 
-  columnHelper.accessor("payPeriod", {
-    header: "Pay Period",
-    cell: (info) => {
-      const period = info.getValue() ?? "N/A";
-      return (
-        <span className="text-sm text-gray-700 dark:text-gray-300">
-          {period === "N/A" ? period : formatDateOnlyUK(period.split(" - ")[0])}
-        </span>
-      );
-    },
-  }),
 
   columnHelper.accessor("Status", {
     header: "Status",

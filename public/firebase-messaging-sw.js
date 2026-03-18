@@ -1,11 +1,7 @@
 /* eslint-disable no-undef */
-
-// ✅ Import Firebase libraries (Compat versions are best for SW)
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
 
-// ✅ Initialize Firebase
-// Note: Ensure these keys match your firebase.ts exactly
 const firebaseConfig = {
   apiKey: "AIzaSyBOwRSUMtT8HRzZHnjpUaNi4_6n0HJYt1E",
   authDomain: "workly-e9a30.firebaseapp.com",
@@ -17,31 +13,31 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
-// ✅ Get Firebase Messaging instance
 const messaging = firebase.messaging();
 
-// ✅ Service Worker Lifecycle Management
-// Ye code zaroori hai taaki service worker foran active ho jaye aur token generate kare
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
-});
-
-// ✅ Handle background notifications
+// Background Notification Handler
 messaging.onBackgroundMessage((payload) => {
-  console.log("[firebase-messaging-sw.js] Background Message received:", payload);
+  console.log("[SW] Background Message:", payload);
 
-  const notificationTitle = payload?.notification?.title || "Workly Notification";
+  // Notification content extract karein
+  const notificationTitle = payload.notification?.title || "Workly Message";
   const notificationOptions = {
-    body: payload?.notification?.body || "You have a new update.",
-    icon: "/icons/icon-192x192.png", // Ensure this file exists in /public/icons/
+    body: payload.notification?.body || "Check your app for updates.",
+    icon: "/icons/icon-192x192.png", 
     badge: "/icons/icon-192x192.png",
-    data: payload?.data, // Custom data pass karne ke liye
+    tag: "workly-notification", // Same tag se purana notification overwrite ho jayega
+    renotify: true,
+    data: payload.data,
   };
 
+  // System ko batayein ke notification dikhana hai
   return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Click listener inside SW (Optional: to open app on click)
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow('/') // Click par app home page khole
+  );
 });

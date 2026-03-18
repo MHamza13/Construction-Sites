@@ -115,7 +115,7 @@ const ProjectUnredComments: React.FC = () => {
               ? `${worker.firstName.trim()} ${worker.lastName.trim()}`  
               : `User #${c.workerId}`;
             const initials = getInitials(worker?.firstName, worker?.lastName);
-            const colorClass = getCommentColor(c._id);
+            const colorClass = getCommentColor(c.id);
             const projectName = getProjectName(c.projectId);
 
             // profilePictureUrl already full URL
@@ -123,7 +123,7 @@ const ProjectUnredComments: React.FC = () => {
 
             return (
               <li
-                key={c._id}
+                key={c.id}
                 className={`p-3 border rounded-lg text-sm transition-all duration-200 ${colorClass} shadow-sm`}
               >
                 {/* Header */}
@@ -144,7 +144,7 @@ const ProjectUnredComments: React.FC = () => {
                     </button>
 
                     <span className="text-gray-500 dark:text-gray-400">
-                      {new Date(c.createdAt).toLocaleString([], {
+                      {new Date(c.createdOn).toLocaleString([], {
                         month: "short",
                         day: "numeric",
                         hour: "2-digit",
