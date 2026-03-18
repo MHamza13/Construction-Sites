@@ -3,75 +3,70 @@
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
+import { LocalNotifications } from "@capacitor/local-notifications"; // 1. Ye install karein
 import { db, auth } from "@/firebase/Firebase"; 
 import { doc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 export default function PushNotificationInit() {
   useEffect(() => {
-    // Sirf Mobile (Android/iOS)
     if (Capacitor.isNativePlatform()) {
       
       const initializePush = async (userId: string) => {
         try {
-          // 1. Android Channel Setup (High Importance taake Tray mein aaye)
+          // 2. Android Channel Setup
           if (Capacitor.getPlatform() === 'android') {
             await PushNotifications.createChannel({
-      id: 'fcm_default_channel', 
-      name: 'RBS Updates',
-      description: 'Critical notifications for RBS app',
-      importance: 5,    
-      visibility: 1,    
-      vibration: true,  
-      sound: 'jackhammer',    
-    });
+              id: 'fcm_default_channel', 
+              name: 'RBS Updates',
+              description: 'Critical notifications for RBS app',
+              importance: 5,    
+              visibility: 1,    
+              vibration: true,  
+              sound: 'jackhammer', // res/raw/jackhammer.mp3 hona zaroori hai
+            });
           }
 
-          // 2. Presentation Options (Foreground banner)
+          // 3. Presentation Options
           await (PushNotifications as any).setPresentationOptions({
             presentationOptions: ["badge", "sound", "alert"],
           });
 
-          // 3. Permission Flow
-          let permStatus = await PushNotifications.checkPermissions();
-          
-          if (permStatus.receive === "prompt") {
-            permStatus = await PushNotifications.requestPermissions();
+          // 4. Register & Permissions
+          let permStatus = await PushNotifications.requestPermissions();
+
+          if (permStatus.receive === "granted") {
+            await PushNotifications.register();
           }
 
-          if (permStatus.receive !== "granted") {
-            console.warn("User denied permissions!");
-            // Agar user ne mana kar diya to bar mein notification nahi aayega
-            return;
-          }
+          // 5. Listener for Foreground (Jab App Khuli ho)
+          PushNotifications.addListener("pushNotificationReceived", async (notification) => {
+            console.log("Notification Received:", notification);
 
-          // 4. Register Device
-          await PushNotifications.register();
+            // Force Display in Notification Bar using LocalNotifications
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: notification.title || "New Message",
+                  body: notification.body || "",
+                  id: new Date().getTime(),
+                  extra: notification.data,
+                  channelId: 'fcm_default_channel',
+                  smallIcon: 'ic_launcher', // App icon check karein
+                  sound: 'jackhammer.mp3'
+                }
+              ]
+            });
+          });
 
-          // 5. Registration Success Listener
+          // Token Saving Logic
           PushNotifications.addListener("registration", async (token) => {
-            console.log("Push Token:", token.value);
             const userRef = doc(db, "users", userId); 
             await setDoc(userRef, {
               fcmToken: token.value,
               lastUpdated: new Date(),
               platform: Capacitor.getPlatform()
             }, { merge: true });
-            console.log("Token saved successfully");
-          });
-
-          // 6. Registration Error
-          PushNotifications.addListener("registrationError", (err) => {
-            alert("Registration Error: " + JSON.stringify(err));
-          });
-
-          // 7. Jab App Background mein ho aur message aaye (Notification Bar ke liye)
-          PushNotifications.addListener("pushNotificationReceived", (notification) => {
-            console.log("Notification Received:", notification);
-          });
-
-          PushNotifications.addListener("pushNotificationActionPerformed", (notification) => {
-            console.log("Notification Clicked:", notification);
           });
 
         } catch (error) {
@@ -80,9 +75,7 @@ export default function PushNotificationInit() {
       };
 
       const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (user) {
-          initializePush(user.uid);
-        }
+        if (user) initializePush(user.uid);
       });
 
       return () => {
