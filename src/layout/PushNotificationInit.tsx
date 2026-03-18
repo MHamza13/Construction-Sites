@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
-import { db, auth } from "@/firebase/Firebase"; // Auth import karein
+import { db, auth } from "@/firebase/Firebase"; 
 import { doc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
