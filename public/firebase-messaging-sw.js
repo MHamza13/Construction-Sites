@@ -17,20 +17,17 @@ const messaging = firebase.messaging();
 
 // Background Notification Handler
 messaging.onBackgroundMessage((payload) => {
-  console.log("[SW] Background Message:", payload);
+  console.log('[SW] Background Message received: ', payload);
 
-  // Notification content extract karein
-  const notificationTitle = payload.notification?.title || "Workly Message";
+  const notificationTitle = payload.notification.title;
   const notificationOptions = {
-    body: payload.notification?.body || "Check your app for updates.",
-    icon: "/icons/icon-192x192.png", 
-    badge: "/icons/icon-192x192.png",
-    tag: "workly-notification", // Same tag se purana notification overwrite ho jayega
-    renotify: true,
+    body: payload.notification.body,
+    icon: '/icons/icon-192x192.png',
     data: payload.data,
+    tag: 'workly-notification' 
   };
 
-  // System ko batayein ke notification dikhana hai
+  // YE LINE SABSE ZAROORI HAI:
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
