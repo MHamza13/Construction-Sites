@@ -23,7 +23,7 @@ export default function PushNotificationInit() {
       importance: 5,    
       visibility: 1,    
       vibration: true,  
-      sound: 'beep',    
+      sound: 'jackhammer',    
     });
           }
 
