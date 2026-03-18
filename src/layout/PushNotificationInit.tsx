@@ -17,13 +17,14 @@ export default function PushNotificationInit() {
           // 1. Android Channel Setup (High Importance taake Tray mein aaye)
           if (Capacitor.getPlatform() === 'android') {
             await PushNotifications.createChannel({
-              id: 'fcm_default_channel',
-              name: 'Default',
-              description: 'Workly Notifications',
-              importance: 5, // High
-              visibility: 1,
-              sound: 'beep.wav'
-            });
+      id: 'fcm_default_channel', 
+      name: 'RBS Updates',
+      description: 'Critical notifications for RBS app',
+      importance: 5,    
+      visibility: 1,    
+      vibration: true,  
+      sound: 'beep',    
+    });
           }
 
           // 2. Presentation Options (Foreground banner)
