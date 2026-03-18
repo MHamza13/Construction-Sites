@@ -1,17 +1,20 @@
 apply plugin: 'com.android.application'
-// 1. Google Services plugin ko yahan direct apply karein
+// Google Services plugin ko sirf ek baar apply karein
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    namespace "com.RBS.app"
+    // 1. Namespace ko update karein
+    namespace "com.rbs"
     compileSdk rootProject.ext.compileSdkVersion
 
     defaultConfig {
-        applicationId "com.RBS.app"
+        // 2. ApplicationId ko update karein (Ye sabse zaroori hai)
+        applicationId "com.rbs"
+
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -39,7 +42,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
 
-    // 2. Firebase aur Push Notifications ke liye ye lines zaroori hain
+    // Firebase aur Push Notifications setup
     implementation platform('com.google.firebase:firebase-bom:32.7.0')
     implementation 'com.google.firebase:firebase-messaging'
 
@@ -49,10 +52,7 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
 }
 
-// 3. Capacitor ki apni build settings
+// Capacitor build settings
 apply from: 'capacitor.build.gradle'
 
-// 4. Force check (Optional but safe)
-if (file('google-services.json').exists()) {
-    apply plugin: 'com.google.gms.google-services'
-}
+// 3. Faltu duplicate plugin lines maine delete kar di hain taake conflict na ho.

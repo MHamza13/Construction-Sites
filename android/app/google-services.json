@@ -7,14 +7,15 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:921335062536:android:922a20ed69f395b695b1bd",
+        "mobilesdk_app_id": "1:921335062536:android:2875edd60a0cc4a795b1bd",
         "android_client_info": {
-          "package_name": "com.RBS.app"
+          "package_name": "com.rbs"
         }
       },
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBOwRSUMtT8HRzZHnjpUaNi4_6n0HJYt1E"
+          "current_key": "AIzaSyB_4qi7ywFrjeoCpnlf_hmOSi24hYrDg7Y"
         }
       ],
       "services": {

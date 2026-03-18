@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.RBS.app',
+  appId: 'com.rbs',
   appName: 'RBS',
   webDir: '.next', 
    server: {
@@ -9,9 +9,14 @@ const config: CapacitorConfig = {
     cleartext: true,
     allowNavigation: ['*']
   },
-  plugins: {
+ plugins: {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
+    },
+    LocalNotifications: {
+      smallIcon: "ic_launcher", 
+      iconColor: "#488AFF",
+      sound: "jackhammer.mp3",
     },
   },
 };

@@ -1,4 +1,4 @@
-package com.RBS.app;
+package com.rbs;
 
 import android.content.Context;
 import android.content.res.Configuration;
@@ -12,33 +12,31 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Plugins yahan automatically register ho jate hain Capacitor 3+ mein
     }
 
     @Override
     public void onStart() {
         super.onStart();
-
-        // WebView settings ko safe tarah se handle karein
+        // WebView ki settings check karna
         if (this.bridge != null && this.bridge.getWebView() != null) {
             WebView webView = (WebView) this.bridge.getWebView();
             WebSettings settings = webView.getSettings();
 
-            // 1. System font size se app ka text kharab na ho
+            // Font size ko 100% par lock kar diya hai
             settings.setTextZoom(100);
 
-            // 2. Zoom controls hide karein (optional but recommended for apps)
+            // Native feel ke liye zoom controls off
             settings.setBuiltInZoomControls(false);
             settings.setDisplayZoomControls(false);
         }
     }
 
-    // Is method se mobile ki setting wala "Font Size" app par asar nahi karega
+    // Is method se system font settings app ko kharab nahi karengi
     @Override
     protected void attachBaseContext(Context newBase) {
-        Configuration newConfig = new Configuration(newBase.getResources().getConfiguration());
-        newConfig.fontScale = 1.0f; // Force font scale to 100%
-        applyOverrideConfiguration(newConfig);
-        super.attachBaseContext(newBase);
+        Configuration config = new Configuration(newBase.getResources().getConfiguration());
+        config.fontScale = 1.0f;
+        Context context = newBase.createConfigurationContext(config);
+        super.attachBaseContext(context);
     }
 }
