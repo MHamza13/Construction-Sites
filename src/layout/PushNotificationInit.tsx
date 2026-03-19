@@ -51,6 +51,10 @@ export default function PushNotificationInit() {
           console.error("❌ RBS_ERROR: Native Registration Error:", error);
         });
 
+        await PushNotifications.addListener('registration', (token) => {
+  console.log('My FCM Token: ' + token.value);
+});
+
         await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
           console.log("RBS_DEBUG: Push Received in Foreground:", notification);
           await LocalNotifications.schedule({
