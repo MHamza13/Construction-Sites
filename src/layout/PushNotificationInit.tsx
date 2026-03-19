@@ -12,20 +12,37 @@ export default function PushNotificationInit() {
   const isInitialized = useRef(false);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || isInitialized.current) return;
+    // --- 1. Manifest injection (Sirf Web ke liye) ---
+    if (!Capacitor.isNativePlatform()) {
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = '/manifest.json';
+      document.head.appendChild(manifestLink);
+      return; // Web par native push ki zaroorat nahi
+    }
+
+    // --- 2. Purane Web Service Worker hatayein (Sirf Mobile) ---
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log("RBS_DEBUG: Purana SW khatam kiya");
+        }
+      });
+    }
+
+    if (isInitialized.current) return;
     isInitialized.current = true;
 
     const platform = Capacitor.getPlatform();
 
     const initializePush = async (userId: string) => {
       try {
-        console.log("RBS_DEBUG: Initializing Native Push for:", userId);
-
         await PushNotifications.removeAllListeners();
 
         // Registration Success
         await PushNotifications.addListener("registration", async (token) => {
-          console.log("RBS_DEBUG: FCM Token Found =>", token.value);
+          console.log("RBS_DEBUG: Token Mil Gaya =>", token.value);
           const userRef = doc(db, "users", userId); 
           await setDoc(userRef, {
             fcmToken: token.value,
@@ -33,12 +50,6 @@ export default function PushNotificationInit() {
             lastTokenUpdate: serverTimestamp(),
             status: "active"
           }, { merge: true });
-          console.log("RBS_DEBUG: Token saved to Firestore");
-        });
-
-        // Error Listener
-        await PushNotifications.addListener("registrationError", (err) => {
-          console.error("RBS_DEBUG: Registration Error:", err.error);
         });
 
         // Foreground Notification
@@ -46,27 +57,25 @@ export default function PushNotificationInit() {
           await LocalNotifications.schedule({
             notifications: [{
               title: notification.title || "RBS Update",
-              body: notification.body || "Nayi update check karein",
+              body: notification.body || "Check updates",
               id: Date.now(),
               channelId: 'rbs_notifications',
               smallIcon: 'ic_stat_name', 
-              extra: notification.data
             }]
           });
         });
 
-        // Android Channel Setup
+        // Android Channel
         if (platform === 'android') {
           await PushNotifications.createChannel({
             id: 'rbs_notifications',
             name: 'RBS Alerts',
             importance: 5,
-            visibility: 1,
             vibration: true,
           });
         }
 
-        // Permission & Register
+        // Permissions & Registration
         let permStatus = await PushNotifications.checkPermissions();
         if (permStatus.receive !== 'granted') {
           permStatus = await PushNotifications.requestPermissions();
@@ -75,18 +84,14 @@ export default function PushNotificationInit() {
         if (permStatus.receive === "granted") {
           await PushNotifications.register();
         }
-
       } catch (error) {
-        console.error("RBS_DEBUG: Push Init Error:", error);
+        console.error("RBS_DEBUG: Error:", error);
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Thoda wait karke init karein taake bridge fully ready ho
         setTimeout(() => initializePush(user.uid), 2000);
-      } else {
-        console.log("RBS_DEBUG: Waiting for login...");
       }
     });
 
