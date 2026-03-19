@@ -20,26 +20,20 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
-// Messaging instance sirf Web ke liye (Native par ye error deta hai)
+// Messaging instance sirf Web ke liye (Safely handle kiya gaya hai)
 export const messaging: Messaging | null = 
-  typeof window !== "undefined" && !Capacitor.isNativePlatform() 
+  typeof window !== "undefined" && !Capacitor.isNativePlatform() && ("serviceWorker" in navigator)
     ? getMessaging(app) 
     : null;
 
-// Token function for WEB only
+// --- Token function for WEB only ---
 export const getFCMToken = async () => {
   try {
-    // 1. Agar Mobile (Native) hai to ye function skip karein
-    if (Capacitor.isNativePlatform()) return null;
+    if (Capacitor.isNativePlatform() || !messaging) return null;
 
-    // 2. Browser check aur messaging check
-    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !messaging) return null;
-
-    // Permission check
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return "permission-denied";
 
-    // Get Token (Sirf Web ke liye)
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
     });
@@ -51,9 +45,13 @@ export const getFCMToken = async () => {
   }
 };
 
+// --- Foreground Listener for WEB only ---
 export const onMessageListener = () =>
   new Promise((resolve) => {
     if (messaging) {
-      onMessage(messaging, (payload) => resolve(payload));
+      onMessage(messaging, (payload) => {
+        console.log("Web Foreground Message:", payload);
+        resolve(payload);
+      });
     }
   });
