@@ -20,22 +20,26 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
+// Messaging instance sirf Web ke liye (Native par ye error deta hai)
+export const messaging: Messaging | null = 
+  typeof window !== "undefined" && !Capacitor.isNativePlatform() 
+    ? getMessaging(app) 
+    : null;
+
 // Token function for WEB only
 export const getFCMToken = async () => {
   try {
-    // 1. Agar Mobile (Native) hai to ye function skip karein (Kyunki Capacitor khud handle karta hai)
+    // 1. Agar Mobile (Native) hai to ye function skip karein
     if (Capacitor.isNativePlatform()) return null;
 
-    // 2. Browser check
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
-
-    const messaging = getMessaging(app);
+    // 2. Browser check aur messaging check
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !messaging) return null;
 
     // Permission check
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return "permission-denied";
 
-    // Get Token
+    // Get Token (Sirf Web ke liye)
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
     });
@@ -49,8 +53,7 @@ export const getFCMToken = async () => {
 
 export const onMessageListener = () =>
   new Promise((resolve) => {
-    if (typeof window !== "undefined" && !Capacitor.isNativePlatform()) {
-      const messaging = getMessaging(app);
+    if (messaging) {
       onMessage(messaging, (payload) => resolve(payload));
     }
   });
