@@ -17,21 +17,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStart() {
         super.onStart();
-        // WebView ki settings check karna
         if (this.bridge != null && this.bridge.getWebView() != null) {
             WebView webView = (WebView) this.bridge.getWebView();
             WebSettings settings = webView.getSettings();
 
-            // Font size ko 100% par lock kar diya hai
+            // Lock font size to 100%
             settings.setTextZoom(100);
-
-            // Native feel ke liye zoom controls off
             settings.setBuiltInZoomControls(false);
             settings.setDisplayZoomControls(false);
         }
     }
 
-    // Is method se system font settings app ko kharab nahi karengi
     @Override
     protected void attachBaseContext(Context newBase) {
         Configuration config = new Configuration(newBase.getResources().getConfiguration());
