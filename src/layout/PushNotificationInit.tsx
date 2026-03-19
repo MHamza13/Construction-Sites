@@ -15,9 +15,10 @@ export default function PushNotificationInit() {
     if (isInitialized.current) return;
     isInitialized.current = true;
 
+    // --- 🛠️ COMMON DATA SYNC FUNCTION ---
     const handleRegistration = async (userId: string, token: string, platform: string) => {
       try {
-        console.log(`RBS_DEBUG: Attempting to save token for ${platform}...`);
+        console.log(`RBS_DEBUG: Saving token for ${platform}...`);
         const userRef = doc(db, "users", userId); 
         await setDoc(userRef, {
           fcmToken: token,
@@ -25,25 +26,26 @@ export default function PushNotificationInit() {
           lastTokenUpdate: serverTimestamp(),
           status: "active"
         }, { merge: true });
-        console.log(`✅ RBS_SUCCESS: Token Saved [${platform}]:`, token);
+        console.log(`✅ RBS_SUCCESS: Token Synced [${platform}]:`, token);
       } catch (err) {
         console.error("❌ RBS_ERROR: Firestore Save Error:", err);
       }
     };
 
+    // --- ⚙️ SETUP LOGIC ---
     const setupNotifications = async (userId: string) => {
-      console.log("RBS_DEBUG: setupNotifications started for user:", userId);
+      console.log("RBS_DEBUG: Starting setup for user:", userId);
 
       if (Capacitor.isNativePlatform()) {
         // --- 📱 MOBILE NATIVE LOGIC ---
         const platform = Capacitor.getPlatform();
-        console.log("RBS_DEBUG: Native Platform detected:", platform);
 
+        // 1. Clean old listeners
         await PushNotifications.removeAllListeners();
 
-        // 1. Add Listeners
+        // 2. Add Listeners BEFORE Registering
         await PushNotifications.addListener("registration", (token) => {
-          console.log("✅ RBS_SUCCESS: Native Registration Token Received:", token.value);
+          console.log("✅ RBS_SUCCESS: Native Token Received:", token.value);
           handleRegistration(userId, token.value, platform);
         });
 
@@ -51,23 +53,19 @@ export default function PushNotificationInit() {
           console.error("❌ RBS_ERROR: Native Registration Error:", error);
         });
 
-        await PushNotifications.addListener('registration', (token) => {
-  console.log('My FCM Token: ' + token.value);
-});
-
         await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
-          console.log("RBS_DEBUG: Push Received in Foreground:", notification);
+          console.log("RBS_DEBUG: Foreground Push:", notification);
           await LocalNotifications.schedule({
             notifications: [{
               title: notification.title || "RBS Update",
-              body: notification.body || "New update received",
+              body: notification.body || "New notification received",
               id: Date.now(),
               channelId: 'rbs_notifications',
             }]
           });
         });
 
-        // 2. Create Channel (Android Only)
+        // 3. Android Channel Setup
         if (platform === 'android') {
           await PushNotifications.createChannel({
             id: 'rbs_notifications',
@@ -76,41 +74,43 @@ export default function PushNotificationInit() {
           });
         }
 
-        // 3. Request Permissions & Register
-        console.log("RBS_DEBUG: Requesting Push Permissions...");
+        // 4. Request Permission & Finally Register
         let perm = await PushNotifications.checkPermissions();
-        
         if (perm.receive !== 'granted') {
           perm = await PushNotifications.requestPermissions();
         }
 
         if (perm.receive === 'granted') {
-          console.log("RBS_DEBUG: Permission GRANTED. Calling PushNotifications.register()...");
-          await PushNotifications.register(); // Ye line Google se token mangwati hai
+          console.log("RBS_DEBUG: Registering with OS...");
+          await PushNotifications.register(); 
         } else {
-          console.warn("⚠️ RBS_WARNING: Push Permission Denied by User.");
+          console.warn("⚠️ RBS_WARNING: Permission Denied.");
         }
 
       } else {
         // --- 🌐 WEB LOGIC ---
-        console.log("RBS_DEBUG: Web Platform detected.");
-        const token = await getFCMToken();
-        if (token && token !== "permission-denied") {
-          handleRegistration(userId, token, "web");
+        // Note: ClientLayout also handles this, but keeping it as backup/sync
+        try {
+          const token = await getFCMToken();
+          if (token && token !== "permission-denied") {
+            handleRegistration(userId, token, "web");
+          }
+          
+          onMessageListener().then((payload) => {
+            console.log("✅ RBS_SUCCESS: Web Message:", payload);
+          });
+        } catch (error) {
+          console.error("RBS_DEBUG: Web Setup Error:", error);
         }
-        
-        onMessageListener().then((payload) => {
-          console.log("✅ RBS_SUCCESS: Web Foreground message received", payload);
-        });
       }
     };
 
+    // --- 🔑 AUTH OBSERVER ---
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        console.log("RBS_DEBUG: Auth State Changed - User Logged In");
         setupNotifications(user.uid);
       } else {
-        console.log("RBS_DEBUG: Auth State Changed - No User");
+        console.log("RBS_DEBUG: No authenticated user found.");
       }
     });
 
