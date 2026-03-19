@@ -3,23 +3,31 @@ import { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.rbs',
   appName: 'RBS',
-  webDir: '.next', 
-   server: {
+  webDir: 'out', // Next.js static export ke liye 'out' behtar hai
+  server: {
     url: 'https://construction-sites.vercel.app',
     cleartext: true,
-    allowNavigation: ['*']
+    // Android par external URL ke plugins ko allow karne ke liye ye zaroori hai
+    androidScheme: 'https',
+    allowNavigation: [
+      'construction-sites.vercel.app',
+      '*.firebaseapp.com',
+      '*.googleapis.com'
+    ]
   },
- plugins: {
+  plugins: {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
+    // FirebaseMessaging ko properly configure karein
     FirebaseMessaging: {
       presentationOptions: ["badge", "sound", "alert"]
     },
     LocalNotifications: {
       smallIcon: "ic_launcher", 
       iconColor: "#488AFF",
-      sound: "jackhammer.mp3",
+      // Sound file ka naam bina extension ke behtar chalta hai native side par
+      sound: "jackhammer", 
     },
   },
 };
