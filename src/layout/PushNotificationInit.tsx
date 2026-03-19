@@ -10,88 +10,72 @@ import { onAuthStateChanged } from "firebase/auth";
 
 export default function PushNotificationInit() {
   useEffect(() => {
-    const platform = Capacitor.getPlatform();
-    
-    // Check if running on Native (Android/iOS)
     if (Capacitor.isNativePlatform()) {
+      const platform = Capacitor.getPlatform();
       
       const initializePush = async (userId: string) => {
         try {
-          // STEP 0: Native Bridge initialization ka thora wait
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Native bridge setup ka thora wait
+          await new Promise(resolve => setTimeout(resolve, 1500));
 
-          if (platform === 'android') {
-            // STEP 1: Channel Creation (Consistent ID use karein)
-            const channelConfig = {
-              id: 'rbs_notifications', // Isko hamesha same rakhein
-              name: 'RBS Notifications', 
-              description: 'Notifications for RBS Construction System',
-              importance: 5, 
-              visibility: 1,
-              vibration: true,
-              // Sound file 'res/raw' mein honi chahiye extensions ke baghair
-              sound: 'jackhammer', 
-            };
-
-            await PushNotifications.createChannel(channelConfig);
-            await LocalNotifications.createChannel(channelConfig);
-            console.log("RBS_DEBUG: Channels Configured");
-          }
-
-          // STEP 2: Permissions Check
+          // STEP 1: Pehle check karein permission hai ya nahi
           let permStatus = await PushNotifications.checkPermissions();
-          
+          console.log("RBS_DEBUG: Current Permission Status:", permStatus.receive);
+
+          // STEP 2: Agar granted nahi hai toh foran popup dikhao
           if (permStatus.receive !== 'granted') {
+            console.log("RBS_DEBUG: Requesting Permissions...");
             permStatus = await PushNotifications.requestPermissions();
           }
 
+          // STEP 3: Agar user ne Allow kar diya, tab register karein
           if (permStatus.receive === "granted") {
-            // STEP 3: Register device to FCM
+            console.log("RBS_DEBUG: Permission Granted, Registering...");
             await PushNotifications.register();
+            
+            // Android ke liye channel setup (Taake notification top pe pop up ho)
+            if (platform === 'android') {
+              await PushNotifications.createChannel({
+                id: 'rbs_notifications',
+                name: 'RBS Notifications',
+                importance: 5, 
+                visibility: 1,
+                vibration: true,
+              });
+            }
           } else {
-            console.error("RBS_DEBUG: Push Permission Denied");
+            console.warn("RBS_DEBUG: User denied notification permissions.");
           }
 
-          // STEP 4: Token Listener (Iske bagair bar mein nahi aayega)
-          PushNotifications.addListener("registration", async (token) => {
-            console.log("RBS_DEBUG: Token Received:", token.value);
-            
-            // Vercel Database Sync
+          // --- Listeners ---
+          
+          // Token update in Firestore
+          await PushNotifications.addListener("registration", async (token) => {
             const userRef = doc(db, "users", userId); 
             await setDoc(userRef, {
               fcmToken: token.value,
               platform: platform,
               lastTokenUpdate: serverTimestamp(),
-              status: "active"
             }, { merge: true });
           });
 
-          // STEP 5: Foreground Notification Handling
-          // Jab app khuli ho tab bhi top bar mein dikhane ke liye
-          PushNotifications.addListener("pushNotificationReceived", async (notification) => {
-            console.log("RBS_DEBUG: Push Received in Foreground", notification);
-            
+          // Foreground handling
+          await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
             await LocalNotifications.schedule({
               notifications: [
                 {
                   title: notification.title || "RBS Update",
-                  body: notification.body || "New update from RBS System",
-                  id: Date.now(),
-                  channelId: 'rbs_notifications', // Match with Step 1
-                  smallIcon: 'ic_stat_name', // Ensure this exists in Android Studio res/drawable
-                  actionTypeId: "",
-                  extra: notification.data
+                  body: notification.body || "New notification",
+                  id: Math.floor(Math.random() * 10000),
+                  channelId: 'rbs_notifications',
+                  smallIcon: 'ic_stat_name',
                 }
               ]
             });
           });
 
-          PushNotifications.addListener("registrationError", (error) => {
-            console.error("RBS_DEBUG: Registration Error:", error);
-          });
-
         } catch (error) {
-          console.error("RBS_DEBUG: Critical Error:", error);
+          console.error("RBS_DEBUG: Error in initialization:", error);
         }
       };
 
