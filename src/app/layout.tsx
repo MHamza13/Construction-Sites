@@ -1,30 +1,19 @@
+"use client";
+
+import { useEffect } from 'react';
 import { Outfit } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/context/ThemeContext';
 import ClientLayout from '@/layout/ClientLayout';
 import { ReduxProvider } from '@/redux/providers';
-import type { Metadata, Viewport } from "next";
+import { Viewport } from "next";
+import { Capacitor } from "@capacitor/core";
 import PushNotificationInit from '@/layout/PushNotificationInit';
 
 const outfit = Outfit({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "RBS",
-  description: "RBS - construction management system",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "RBS",
-  },
-  formatDetection: {
-    telephone: false,
-  },
-};
-
-// --- YAHAN CHANGES HAIN ---
 export const viewport: Viewport = {
   themeColor: "#000000",
   width: "device-width",
@@ -39,13 +28,31 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  useEffect(() => {
+    // 🛑 AGAR NATIVE APP HAI TO SERVICE WORKER UNREGISTER KAREIN
+    if (Capacitor.isNativePlatform()) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let registration of registrations) {
+            registration.unregister();
+            console.log("RBS_DEBUG: Web Service Worker Unregistered for Native App");
+          }
+        });
+      }
+    }
+  }, []);
+
   return (
     <html lang="en" suppressHydrationWarning>
-   
+      <head>
+        {/* Manifest sirf web par load ho, mobile par Capacitor handle karega */}
+        {!Capacitor.isNativePlatform() && <link rel="manifest" href="/manifest.json" />}
+      </head>
       <body className={`${outfit.className} dark:bg-gray-900 antialiased`}>
         <ReduxProvider>
           <ThemeProvider>
-            <PushNotificationInit/>
+            <PushNotificationInit />
             <ClientLayout>
               {children}
             </ClientLayout>
