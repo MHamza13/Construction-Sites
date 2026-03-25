@@ -5,26 +5,20 @@ import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications"; 
 import { db, getFCMToken, onMessageListener } from "@/firebase/Firebase"; 
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
 
 export default function PushNotificationInit() {
   const isInitialized = useRef(false);
+  const isFirstRun = useRef(true); // Purani notifications ko ignore karne ke liye
 
   useEffect(() => {
     if (isInitialized.current) return;
     isInitialized.current = true;
 
-    // --- Token Save Karne Ka Function ---
+    // --- 1. Token Save Karne Ka Function ---
     const handleRegistration = async (token: string, platform: string) => {
       try {
-        console.log(`RBS_DEBUG: Saving token for ${platform}...`);
-        
-        /**
-         * Kyunke hum auth use nahi kar rahe, hum token ko hi Document ID bana rahe hain.
-         * Isse duplicate tokens create nahi honge.
-         */
         const deviceRef = doc(db, "device_tokens", token); 
-        
         await setDoc(deviceRef, {
           fcmToken: token,
           platform: platform,
@@ -32,20 +26,49 @@ export default function PushNotificationInit() {
           deviceInfo: Capacitor.getPlatform(),
           status: "active"
         }, { merge: true });
-
         console.log(`✅ RBS_SUCCESS: Token Synced [${platform}]:`, token);
       } catch (err) {
         console.error("❌ RBS_ERROR: Firestore Save Error:", err);
       }
     };
 
+    // --- 2. Firestore Listener (Sync logic) ---
+    // Jab bhi 'notification' collection mein naya doc aayega, ye phone par alert dega
+    const startFirestoreSync = () => {
+      const q = query(collection(db, "notification"), orderBy("sentAt", "desc"), limit(1));
+      
+      onSnapshot(q, (snapshot) => {
+        if (isFirstRun.current) {
+          isFirstRun.current = false;
+          return; // Pehli baar load hote waqt notification nahi dikhani
+        }
+
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type === "added" && Capacitor.isNativePlatform()) {
+            const data = change.doc.data();
+            
+            // Mobile screen par notification dikhana
+            await LocalNotifications.schedule({
+              notifications: [{
+                title: data.title || "New Notification",
+                body: data.body || "You have a new update in RBS",
+                id: Math.floor(Math.random() * 10000),
+                channelId: 'rbs_notifications',
+                smallIcon: 'ic_stat_name', 
+              }]
+            });
+          }
+        });
+      });
+    };
+
     const setupNotifications = async () => {
-      console.log("RBS_DEBUG: Starting setup (Direct Call)...");
+      console.log("RBS_DEBUG: Starting setup...");
 
       if (Capacitor.isNativePlatform()) {
         const platform = Capacitor.getPlatform();
 
-        // 1. Android Channel Setup
+        // Android Channel
         if (platform === 'android') {
           await PushNotifications.createChannel({
             id: 'rbs_notifications',
@@ -56,30 +79,23 @@ export default function PushNotificationInit() {
           });
         }
 
-        // 2. Request Permissions
+        // Permissions
         await LocalNotifications.requestPermissions();
         let perm = await PushNotifications.checkPermissions();
-        
         if (perm.receive !== 'granted') {
           perm = await PushNotifications.requestPermissions();
         }
 
         if (perm.receive === 'granted') {
-          // 3. Listeners ko Register se pehle add karein
           await PushNotifications.removeAllListeners();
 
+          // Token Receive Listener
           await PushNotifications.addListener("registration", (token) => {
-            console.log("✅ RBS_SUCCESS: Native Token Received:", token.value);
             handleRegistration(token.value, platform);
           });
 
-          await PushNotifications.addListener("registrationError", (error) => {
-            console.error("❌ RBS_ERROR: Native Registration Error:", error);
-          });
-
+          // Foreground Push Listener (For FCM)
           await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
-            console.log("RBS_DEBUG: Foreground Push Received:", notification);
-            
             await LocalNotifications.schedule({
               notifications: [{
                 title: notification.title || "RBS Update",
@@ -90,31 +106,25 @@ export default function PushNotificationInit() {
             });
           });
 
-          // 4. Register
-          console.log("RBS_DEBUG: Registering with OS...");
           await PushNotifications.register(); 
         }
-
       } else {
-        // --- Web Logic (If needed) ---
+        // Web Logic
         try {
           const token = await getFCMToken();
           if (token && token !== "permission-denied") {
             handleRegistration(token, "web");
           }
-          
-          onMessageListener().then((payload) => {
-            console.log("✅ RBS_SUCCESS: Web Message:", payload);
-          });
         } catch (error) {
-          console.error("RBS_DEBUG: Web Setup Error:", error);
+          console.error("Web Setup Error:", error);
         }
       }
+
+      // Firestore sync start karein
+      startFirestoreSync();
     };
 
-    // --- DIRECT CALL: Kisi condition ka intezar nahi ---
     setupNotifications();
-
   }, []);
 
   return null; 
