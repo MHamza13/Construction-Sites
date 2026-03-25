@@ -127,7 +127,7 @@ const WorkerChat = () => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // Online/Offline Status listener
+  // Online/ Status listener
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const statusMap = {};
@@ -401,7 +401,7 @@ const WorkerChat = () => {
                   )}
                 </div>
                 <p className={`text-[10px] ${activeChat === w.id ? "text-blue-100" : "text-gray-500"}`}>
-                  {userStatus[w.id] ? "Online" : "Offline"}
+                  {userStatus[w.id] ? "Online" : ""}
                 </p>
               </div>
             </div>
@@ -433,7 +433,7 @@ const WorkerChat = () => {
                   {selectedWorker.firstName} {selectedWorker.lastName}
                 </h2>
                 <span className={`text-[10px] font-medium ${userStatus[selectedWorker.id] ? "text-green-500" : "text-gray-400"}`}>
-                  {userStatus[selectedWorker.id] ? "Online" : "Offline"}
+                  {userStatus[selectedWorker.id] ? "Online" : ""}
                 </span>
               </div>
             </header>
