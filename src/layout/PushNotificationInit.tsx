@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications"; 
-import { db } from "@/firebase/Firebase"; // Auth nikal diya yahan se
+import { db, getFCMToken, onMessageListener } from "@/firebase/Firebase"; 
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export default function PushNotificationInit() {
@@ -14,29 +14,33 @@ export default function PushNotificationInit() {
     if (isInitialized.current) return;
     isInitialized.current = true;
 
-    // --- Token Ko Firestore Mein Save Karne Ka Function ---
+    // --- Token Save Karne Ka Function ---
     const handleRegistration = async (token: string, platform: string) => {
       try {
-        console.log(`RBS_DEBUG: Saving Device Token [${platform}]...`);
+        console.log(`RBS_DEBUG: Saving token for ${platform}...`);
         
-        // Agar user login nahi hai, toh hum device ID ya random ID use kar sakte hain
-        // Filhal hum 'anonymous_devices' collection mein save kar rahe hain
+        /**
+         * Kyunke hum auth use nahi kar rahe, hum token ko hi Document ID bana rahe hain.
+         * Isse duplicate tokens create nahi honge.
+         */
         const deviceRef = doc(db, "device_tokens", token); 
+        
         await setDoc(deviceRef, {
           fcmToken: token,
           platform: platform,
-          lastUpdated: serverTimestamp(),
-          deviceInfo: Capacitor.getPlatform()
+          lastTokenUpdate: serverTimestamp(),
+          deviceInfo: Capacitor.getPlatform(),
+          status: "active"
         }, { merge: true });
-        
-        console.log(`✅ RBS_SUCCESS: Token Synced:`, token);
+
+        console.log(`✅ RBS_SUCCESS: Token Synced [${platform}]:`, token);
       } catch (err) {
         console.error("❌ RBS_ERROR: Firestore Save Error:", err);
       }
     };
 
     const setupNotifications = async () => {
-      console.log("RBS_DEBUG: Triggering setup without login...");
+      console.log("RBS_DEBUG: Starting setup (Direct Call)...");
 
       if (Capacitor.isNativePlatform()) {
         const platform = Capacitor.getPlatform();
@@ -52,7 +56,7 @@ export default function PushNotificationInit() {
           });
         }
 
-        // 2. Request Permissions (Dono mangna lazmi hain)
+        // 2. Request Permissions
         await LocalNotifications.requestPermissions();
         let perm = await PushNotifications.checkPermissions();
         
@@ -61,11 +65,11 @@ export default function PushNotificationInit() {
         }
 
         if (perm.receive === 'granted') {
-          // 3. Listeners Setup
+          // 3. Listeners ko Register se pehle add karein
           await PushNotifications.removeAllListeners();
 
           await PushNotifications.addListener("registration", (token) => {
-            console.log("✅ RBS_SUCCESS: Token Received:", token.value);
+            console.log("✅ RBS_SUCCESS: Native Token Received:", token.value);
             handleRegistration(token.value, platform);
           });
 
@@ -74,11 +78,12 @@ export default function PushNotificationInit() {
           });
 
           await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
-            console.log("RBS_DEBUG: Foreground Push:", notification);
+            console.log("RBS_DEBUG: Foreground Push Received:", notification);
+            
             await LocalNotifications.schedule({
               notifications: [{
-                title: notification.title || "RBS Notification",
-                body: notification.body || "",
+                title: notification.title || "RBS Update",
+                body: notification.body || "New update available",
                 id: Math.floor(Math.random() * 10000),
                 channelId: 'rbs_notifications',
               }]
@@ -89,10 +94,25 @@ export default function PushNotificationInit() {
           console.log("RBS_DEBUG: Registering with OS...");
           await PushNotifications.register(); 
         }
+
+      } else {
+        // --- Web Logic (If needed) ---
+        try {
+          const token = await getFCMToken();
+          if (token && token !== "permission-denied") {
+            handleRegistration(token, "web");
+          }
+          
+          onMessageListener().then((payload) => {
+            console.log("✅ RBS_SUCCESS: Web Message:", payload);
+          });
+        } catch (error) {
+          console.error("RBS_DEBUG: Web Setup Error:", error);
+        }
       }
     };
 
-    // --- DIRECT CALL (No Auth Required) ---
+    // --- DIRECT CALL: Kisi condition ka intezar nahi ---
     setupNotifications();
 
   }, []);
