@@ -27,7 +27,7 @@ public class MainActivity extends BridgeActivity {
             settings.setDisplayZoomControls(false);
         }
     }
-
+    
     @Override
     protected void attachBaseContext(Context newBase) {
         Configuration config = new Configuration(newBase.getResources().getConfiguration());
