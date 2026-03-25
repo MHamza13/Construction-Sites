@@ -4,12 +4,12 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { LocalNotifications } from "@capacitor/local-notifications"; 
-import { db, getFCMToken, onMessageListener } from "@/firebase/Firebase"; 
+import { db, getFCMToken } from "@/firebase/Firebase"; 
 import { doc, setDoc, serverTimestamp, collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
 
 export default function PushNotificationInit() {
   const isInitialized = useRef(false);
-  const isFirstRun = useRef(true); // Purani notifications ko ignore karne ke liye
+  const isFirstRun = useRef(true); 
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -33,21 +33,18 @@ export default function PushNotificationInit() {
     };
 
     // --- 2. Firestore Listener (Sync logic) ---
-    // Jab bhi 'notification' collection mein naya doc aayega, ye phone par alert dega
     const startFirestoreSync = () => {
       const q = query(collection(db, "notification"), orderBy("sentAt", "desc"), limit(1));
       
       onSnapshot(q, (snapshot) => {
         if (isFirstRun.current) {
           isFirstRun.current = false;
-          return; // Pehli baar load hote waqt notification nahi dikhani
+          return; 
         }
 
         snapshot.docChanges().forEach(async (change) => {
           if (change.type === "added" && Capacitor.isNativePlatform()) {
             const data = change.doc.data();
-            
-            // Mobile screen par notification dikhana
             await LocalNotifications.schedule({
               notifications: [{
                 title: data.title || "New Notification",
@@ -64,6 +61,16 @@ export default function PushNotificationInit() {
 
     const setupNotifications = async () => {
       console.log("RBS_DEBUG: Starting setup...");
+
+      // --- PWA SERVICE WORKER REGISTRATION (Logic Added Here) ---
+      if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/custom-sw.js');
+          console.log('✅ RBS_PWA: Service Worker Registered Scope:', registration.scope);
+        } catch (swError) {
+          console.error('❌ RBS_PWA: SW Registration Failed:', swError);
+        }
+      }
 
       if (Capacitor.isNativePlatform()) {
         const platform = Capacitor.getPlatform();
@@ -89,12 +96,10 @@ export default function PushNotificationInit() {
         if (perm.receive === 'granted') {
           await PushNotifications.removeAllListeners();
 
-          // Token Receive Listener
           await PushNotifications.addListener("registration", (token) => {
             handleRegistration(token.value, platform);
           });
 
-          // Foreground Push Listener (For FCM)
           await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
             await LocalNotifications.schedule({
               notifications: [{
@@ -109,8 +114,13 @@ export default function PushNotificationInit() {
           await PushNotifications.register(); 
         }
       } else {
-        // Web Logic
+        // Web / PWA Logic
         try {
+          // Notification permission check for Web
+          if (Notification.permission === 'default') {
+            await Notification.requestPermission();
+          }
+
           const token = await getFCMToken();
           if (token && token !== "permission-denied") {
             handleRegistration(token, "web");
@@ -120,7 +130,6 @@ export default function PushNotificationInit() {
         }
       }
 
-      // Firestore sync start karein
       startFirestoreSync();
     };
 
