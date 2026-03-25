@@ -1,27 +1,27 @@
 self.addEventListener('push', function (event) {
-  let data = { title: '', body: '', url: '' };
+  let data = { title: 'New Notification', body: 'Check it out!', url: '/' };
 
   if (event.data) {
     try {
       const payload = event.data.json();
-      
-      // --- Aapka Logic Yahan Start Hota Hai ---
       const lowerTitle = (payload.title || "").toLowerCase();
       let destination = payload.link || "/";
 
-      // Agar link nahi hai, toh title ya type se check karein
+      // --- Logic for destination URL ---
       if (!payload.link) {
         if (payload.type === "chat" || lowerTitle.includes("chat")) {
           destination = "/chat";
-        } else if (payload.SenderID) {
-          destination = `/project-worker/${payload.SenderID}?projectid=${payload.projectID || 'default'}`;
+        } else if (payload.senderID || payload.SenderID) {
+          const sID = payload.senderID || payload.SenderID;
+          const pID = payload.projectID || 'default';
+          destination = `/project-worker/${sID}?projectid=${pID}`;
         }
       }
-      
+
       data = {
         title: payload.title || "New Notification",
-        body: payload.body || "Check it out!",
-        url: destination // Final destination url
+        body: payload.body || "You have a new update.",
+        url: destination
       };
     } catch (e) {
       data.body = event.data.text();
@@ -34,10 +34,13 @@ self.addEventListener('push', function (event) {
     badge: '/images/logo/logo-icon.png',
     vibrate: [200, 100, 200],
     data: {
-      url: data.url
+      url: data.url // Storing the destination URL here
     },
     tag: 'renotify-tag',
-    renotify: true
+    renotify: true,
+    actions: [
+      { action: 'open_url', title: 'View Now' }
+    ]
   };
 
   event.waitUntil(
@@ -46,21 +49,36 @@ self.addEventListener('push', function (event) {
 });
 
 self.addEventListener('notificationclick', function (event) {
-  event.notification.close();
+  event.notification.close(); // Notification ko close karein
 
+  // Target URL ko absolute banayein
   const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(targetUrl);
-          return client.focus();
-        }
+  const promiseChain = clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  }).then((windowClients) => {
+    let matchingClient = null;
+
+    // 1. Check karein agar koi window pehle se open hai hamari site ki
+    for (let i = 0; i < windowClients.length; i++) {
+      const windowClient = windowClients[i];
+      if (windowClient.url.startsWith(self.location.origin)) {
+        matchingClient = windowClient;
+        break;
       }
+    }
+
+    // 2. Agar window mil jaye toh use navigate karein aur focus karein
+    if (matchingClient) {
+      return matchingClient.navigate(targetUrl).then(client => client.focus());
+    } else {
+      // 3. Agar koi window open na ho toh openWindow use karein
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }
-    })
-  );
+    }
+  });
+
+  event.waitUntil(promiseChain);
 });
