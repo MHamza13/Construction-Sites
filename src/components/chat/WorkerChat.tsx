@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Send,
   File as FileIcon,
@@ -29,8 +29,6 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
-  updateDoc,
-  where,
 } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/firebase/Firebase";
@@ -38,14 +36,10 @@ import Image from "next/image";
 import Link from "next/link";
 
 // -------- Helper functions --------
-// Chat ID consistent banane ke liye dono IDs ko sort karke join karte hain
-export const generateChatId = (uid1, uid2) => {
-  const ids = [String(uid1), String(uid2)].sort();
-  return `chat_${ids[0]}_${ids[1]}`;
-};
+export const generateChatId = (activeChat) =>
+  `chat_${String(activeChat).replace(/\s+/g, "")}`;
 
 export const formatMessageDate = (date) => {
-  if (!date) return "";
   const today = new Date();
   const msgDate = new Date(date);
   if (msgDate.toDateString() === today.toDateString()) return "Today";
@@ -60,7 +54,6 @@ export const formatMessageDate = (date) => {
 };
 
 export const formatTime = (date) => {
-  if (!date) return "";
   return new Date(date).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -74,7 +67,7 @@ const WorkerChat = () => {
   const loginData = useSelector((state) => state.auth);
 
   const user = {
-    userId: String(loginData?.user?.userId || ""),
+    userId: loginData?.user?.userId || "",
     name: `${loginData?.user?.name || ""} ${loginData?.user?.surname || ""}`,
     email: loginData?.user?.email || "",
     token: loginData?.token || "",
@@ -97,7 +90,7 @@ const WorkerChat = () => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  const [activeChat, setActiveChat] = useState(null); // activeChat stores worker ID
+  const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -106,7 +99,6 @@ const WorkerChat = () => {
   const [isSending, setIsSending] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [userStatus, setUserStatus] = useState({});
-  const [chatListMetadata, setChatListMetadata] = useState({}); // Stores last message & unread count
 
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -117,7 +109,6 @@ const WorkerChat = () => {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
-  // Online status listener
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const statusMap = {};
@@ -129,30 +120,12 @@ const WorkerChat = () => {
     return () => unsub();
   }, []);
 
-  // Sidebar metadata listener (Last message, unread etc)
-  useEffect(() => {
-    if (!user.userId) return;
-    
-    // Listen to all chats where current user is a participant
-    const q = query(collection(db, "chats"), where("participants", "array-contains", user.userId));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const meta = {};
-      snapshot.forEach((doc) => {
-        meta[doc.id] = doc.data();
-      });
-      setChatListMetadata(meta);
-    });
-    return () => unsubscribe();
-  }, [user.userId]);
-
-  // Active chat messages listener
   useEffect(() => {
     if (!activeChat) {
       setMessages([]);
       return;
     }
-    const chatId = generateChatId(user.userId, activeChat);
+    const chatId = generateChatId(activeChat);
     const messagesRef = collection(db, "chats", chatId, "messages");
     const q = query(messagesRef, orderBy("createdAt", "asc"));
 
@@ -163,20 +136,9 @@ const WorkerChat = () => {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
       }));
       setMessages(msgs);
-
-      // Mark messages as read when viewing
-      if (msgs.length > 0) {
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg.senderId !== user.userId) {
-          updateDoc(doc(db, "chats", chatId), {
-            [`unreadCount_${user.userId}`]: 0,
-            lastReadTimestamp: serverTimestamp()
-          });
-        }
-      }
     });
     return () => unsubscribe();
-  }, [activeChat, user.userId]);
+  }, [activeChat]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -245,28 +207,11 @@ const WorkerChat = () => {
     setIsSending(true);
     setShowEmojiPicker(false);
 
-    const chatId = generateChatId(user.userId, activeChat);
+    const chatId = generateChatId(activeChat);
     const receiver = workers.find((w) => w.id === activeChat);
 
     try {
-      let lastMsgText = input.trim();
-      
-      // Update Chat Document (Metadata)
-      const chatDocRef = doc(db, "chats", chatId);
-      
-      const updateMetadata = async (text, type) => {
-        const currentMetadata = chatListMetadata[chatId] || {};
-        const currentUnread = currentMetadata[`unreadCount_${activeChat}`] || 0;
-        
-        await setDoc(chatDocRef, {
-          participants: [user.userId, String(activeChat)],
-          lastMessage: text,
-          lastMessageType: type,
-          lastUpdated: serverTimestamp(),
-          lastSenderId: user.userId,
-          [`unreadCount_${activeChat}`]: currentUnread + 1,
-        }, { merge: true });
-      };
+      await setDoc(doc(db, "chats", chatId), { users: [activeChat], lastUpdated: serverTimestamp() }, { merge: true });
 
       for (const item of filePreviews) {
         const fileUrl = await uploadFile(item.file, chatId);
@@ -282,9 +227,8 @@ const WorkerChat = () => {
           senderId: user.userId,
           senderName: user.name,
           createdAt: serverTimestamp(),
+          read: false,
         });
-        lastMsgText = `Sent a ${msgType}`;
-        await updateMetadata(lastMsgText, msgType);
       }
 
       if (input.trim()) {
@@ -294,8 +238,8 @@ const WorkerChat = () => {
           senderId: user.userId,
           senderName: user.name,
           createdAt: serverTimestamp(),
+          read: false,
         });
-        await updateMetadata(input.trim(), "text");
 
         if (receiver) {
           dispatch(
@@ -326,28 +270,6 @@ const WorkerChat = () => {
       sendMessage();
     }
   };
-
-  // --- Sorting Workers Logic ---
-  const sortedWorkers = useMemo(() => {
-    return [...workers].sort((a, b) => {
-      const chatIdA = generateChatId(user.userId, a.id);
-      const chatIdB = generateChatId(user.userId, b.id);
-      
-      const metaA = chatListMetadata[chatIdA];
-      const metaB = chatListMetadata[chatIdB];
-
-      const unreadA = metaA?.[`unreadCount_${user.userId}`] > 0 ? 1 : 0;
-      const unreadB = metaB?.[`unreadCount_${user.userId}`] > 0 ? 1 : 0;
-
-      // Rule 1: Unread messages first
-      if (unreadA !== unreadB) return unreadB - unreadA;
-
-      // Rule 2: Most recent messages
-      const timeA = metaA?.lastUpdated?.toMillis() || 0;
-      const timeB = metaB?.lastUpdated?.toMillis() || 0;
-      return timeB - timeA;
-    });
-  }, [workers, chatListMetadata, user.userId]);
 
   const selectedWorker = workers.find((w) => w.id === activeChat);
   const groupedMessages = messages.reduce((groups, msg) => {
@@ -391,61 +313,39 @@ const WorkerChat = () => {
           </button>
         </div>
         <div className="overflow-y-auto flex-1 p-2 space-y-1 custom-scrollbar">
-          {sortedWorkers.map((w) => {
-            const chatId = generateChatId(user.userId, w.id);
-            const meta = chatListMetadata[chatId];
-            const unreadCount = meta?.[`unreadCount_${user.userId}`] || 0;
-            const lastMsg = meta?.lastMessage || "No messages yet";
-            const lastTime = meta?.lastUpdated?.toDate();
-
-            return (
-              <div
-                key={w.id}
-                onClick={() => setActiveChat(w.id)}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-                  activeChat === w.id
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                }`}
-              >
-                <div className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-gray-300 flex items-center justify-center font-bold">
-                  {w.profilePictureUrl && isValidUrl(w.profilePictureUrl) ? (
-                    <Image src={w.profilePictureUrl} alt="" width={48} height={48} className="object-cover" unoptimized />
-                  ) : (
-                    <span className={activeChat === w.id ? "text-white" : "text-gray-600"}>{w.firstName?.[0]}</span>
-                  )}
-                  <Circle
-                    className={`w-3 h-3 absolute bottom-0 right-0 border-2 border-white ${
-                      userStatus[w.id] ? "text-green-500" : "text-gray-400"
-                    }`}
-                    fill="currentColor"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline">
-                    <p className="font-semibold text-sm truncate">
-                      {w.firstName} {w.lastName}
-                    </p>
-                    {lastTime && (
-                      <span className={`text-[9px] ${activeChat === w.id ? "text-blue-100" : "text-gray-400"}`}>
-                        {formatTime(lastTime)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className={`text-xs truncate ${activeChat === w.id ? "text-blue-100" : "text-gray-500"} ${unreadCount > 0 ? "font-bold text-gray-900 dark:text-white" : ""}`}>
-                      {lastMsg}
-                    </p>
-                    {unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
+          {workers.map((w) => (
+            <div
+              key={w.id}
+              onClick={() => setActiveChat(w.id)}
+              className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                activeChat === w.id
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "hover:bg-gray-200 dark:hover:bg-gray-700"
+              }`}
+            >
+              <div className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-gray-300 flex items-center justify-center font-bold">
+                {w.profilePictureUrl && isValidUrl(w.profilePictureUrl) ? (
+                  <Image src={w.profilePictureUrl} alt="" width={48} height={48} className="object-cover" unoptimized />
+                ) : (
+                  <span className={activeChat === w.id ? "text-white" : "text-gray-600"}>{w.firstName?.[0]}</span>
+                )}
+                <Circle
+                  className={`w-3 h-3 absolute bottom-0 right-0 border-2 border-white ${
+                    userStatus[w.id] ? "text-green-500" : "text-gray-400"
+                  }`}
+                  fill="currentColor"
+                />
               </div>
-            );
-          })}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate">
+                  {w.firstName} {w.lastName}
+                </p>
+                <p className={`text-[10px] ${activeChat === w.id ? "text-blue-100" : "text-gray-500"}`}>
+                  {userStatus[w.id] ? "Online" : "Offline"}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </aside>
 
@@ -657,6 +557,7 @@ const WorkerChat = () => {
         .dark .custom-scrollbar::-webkit-scrollbar-thumb {
           background: #334155;
         }
+        /* Mobile height fix */
         body {
           overflow: hidden;
           overscroll-behavior-y: contain;
