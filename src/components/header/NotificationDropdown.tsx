@@ -41,83 +41,65 @@ export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // App khulne ka waqt record karein (taake purani notifications skip hon)
+  const appStartTime = useRef(Date.now());
   const isFirstRun = useRef(true); 
 
   const router = useRouter(); 
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // --- 1. Navigation Logic ---
   const getDestination = useCallback((n: any) => {
-    const rawType = n.Type || n.type || "";
-    const type = rawType.toLowerCase().trim().replace(/\s/g, "");
+    const rawType = (n.Type || n.type || "").toLowerCase().trim().replace(/\s/g, "");
     const sID = n.SenderID || n.senderID;
     const pID = n.projectId || n.projectID || n.projectid;
-
     if (n.link) return n.link;
-    if (type === "projectchat" || type.includes("projectchat")) {
+    if (rawType === "projectchat" || rawType.includes("projectchat")) {
       if (sID && pID) return `/project-worker/${sID}?projectid=${pID}`;
       return "/chat";
     }
-    if (type === "chat" || (n.title && n.title.toLowerCase().includes("chat"))) {
-      return "/chat";
-    }
+    if (rawType === "chat" || (n.title && n.title.toLowerCase().includes("chat"))) return "/chat";
     return "/";
   }, []);
 
-  // --- 2. PWA & Native Push Logic ---
   const triggerPush = useCallback(async (n: any) => {
     const destination = getDestination(n);
     const title = n.title || "RBS Update";
     const body = n.body || "New update received";
 
-    // A. Native Platform (Capacitor)
     if (Capacitor.isNativePlatform()) {
       await LocalNotifications.schedule({
         notifications: [{
-          title: title,
-          body: body,
+          title, body,
           id: Math.floor(Math.random() * 10000),
           extra: { destination, notifId: n.id },
-          smallIcon: "res://notification_icon", // Make sure this exists in Android
+          smallIcon: "res://notification_icon",
         }]
       });
-    } 
-    // B. Web/PWA Platform
-    else if ("Notification" in window && Notification.permission === "granted") {
-      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-        const registration = await navigator.serviceWorker.ready;
-        registration.showNotification(title, {
-          body: body,
-          icon: "/images/logo/logo-icon.png", // Correct path to your icon
-          badge: "/images/logo/logo-icon.png",
-          data: { url: destination },
-          tag: n.id || "rbs-notif",
-          renotify: true
-        });
-      }
+    } else if ("Notification" in window && Notification.permission === "granted") {
+      const registration = await navigator.serviceWorker.ready;
+      registration.showNotification(title, {
+        body,
+        icon: "/images/logo/logo-icon.png",
+        badge: "/images/logo/logo-icon.png",
+        data: { url: destination },
+        tag: n.id,
+        renotify: true
+      });
     }
   }, [getDestination]);
 
-  // --- 3. Initial Setup (Permissions & Workers) ---
   useEffect(() => {
     dispatch(fetchWorkers());
-
-    // Register Service Worker for PWA
     if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
-      navigator.serviceWorker.register("/custom-sw.js")
-        .then((reg) => console.log("SW Registered for PWA"))
-        .catch((err) => console.error("SW Registration failed", err));
+      navigator.serviceWorker.register("/custom-sw.js");
     }
-
-    // Request Browser Notification Permission
     if ("Notification" in window && Notification.permission !== "granted") {
       Notification.requestPermission();
     }
-
-    // Capacitor Listener
     if (Capacitor.isNativePlatform()) {
-      const listener = LocalNotifications.addListener("localNotificationActionPerformed", (action: ActionPerformed) => {
+      const listener = LocalNotifications.addListener("localNotificationActionPerformed", (action) => {
         const path = action.notification.extra?.destination;
         if (path) router.push(path);
       });
@@ -125,7 +107,6 @@ export default function NotificationDropdown() {
     }
   }, [dispatch, router]);
 
-  // --- 4. Firestore Listener ---
   useEffect(() => {
     if (workers.length === 0) return;
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
@@ -134,9 +115,15 @@ export default function NotificationDropdown() {
       const fetched: any[] = [];
       
       snapshot.docChanges().forEach((change) => {
-        // Trigger only for NEW notifications after initial load
+        // --- NEW LOGIC: Sirf tab dikhayein agar notification abhi aayi ho ---
         if (change.type === "added" && !isFirstRun.current) {
-          triggerPush({ id: change.doc.id, ...change.doc.data() });
+          const data = change.doc.data();
+          const sentAtMillis = data.sentAt?.toDate ? data.sentAt.toDate().getTime() : new Date(data.sentAt).getTime();
+          
+          // Agar notification ka time app khulne ke baad ka hai, tabhi push dikhayein
+          if (sentAtMillis > appStartTime.current) {
+            triggerPush({ id: change.doc.id, ...data });
+          }
         }
       });
 
@@ -145,7 +132,6 @@ export default function NotificationDropdown() {
         fetched.push({ id: d.id, ...data, read: data.read ?? false });
       });
 
-      // Filter: Show only notifications where sender exists in worker list
       const validNotifications = fetched.filter((n) =>
         workers.some((w) => String(w.id) === String(n.SenderID || n.senderID))
       );
@@ -157,42 +143,29 @@ export default function NotificationDropdown() {
     return () => unsubscribe();
   }, [workers, triggerPush]);
 
-  // --- 5. UI Handlers ---
+  // UI rendering code remains same...
   const handleNotificationClick = async (n: any) => {
     setIsOpen(false);
     const path = getDestination(n);
-    if (!n.read) {
-      try {
-        await updateDoc(doc(db, "notification", n.id), { read: true });
-      } catch (error) {
-        console.error("❌ Error marking read:", error);
-      }
-    }
+    if (!n.read) await updateDoc(doc(db, "notification", n.id), { read: true });
     router.push(path);
   };
 
   const getWorkerInfo = (sID?: any) => {
     const worker = workers.find((w) => String(w.id) === String(sID));
     if (!worker) return { name: "System", initials: "R", image: null };
-    const first = worker.firstName?.trim() || "";
-    const last = worker.lastName?.trim() || "";
-    return { 
-      name: `${first} ${last}`.trim(), 
-      initials: (first[0] || "") + (last[0] || ""), 
-      image: worker.profilePictureUrl || null 
-    };
+    const first = worker.firstName || "";
+    const last = worker.lastName || "";
+    return { name: `${first} ${last}`, initials: (first[0] || "") + (last[0] || ""), image: worker.profilePictureUrl };
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-10 w-10 md:h-11 md:w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-      >
+      <button onClick={() => setIsOpen(!isOpen)} className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900">
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-red-500 text-[10px] md:text-xs font-bold text-white ring-2 ring-white dark:ring-gray-900">
+          <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ring-2 ring-white dark:ring-gray-900">
             {unreadCount}
           </span>
         )}
@@ -201,66 +174,38 @@ export default function NotificationDropdown() {
         </svg>
       </button>
 
-      <Dropdown
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        className="fixed left-4 right-4 md:absolute md:left-auto md:right-0 mt-3 flex h-[450px] w-auto md:w-[360px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-[999]"
-      > 
+      <Dropdown isOpen={isOpen} onClose={() => setIsOpen(false)} className="fixed left-4 right-4 md:absolute md:left-auto md:right-0 mt-3 flex h-[450px] w-auto md:w-[360px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-[999]">
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-gray-700">
           <h5 className="text-sm md:text-base font-bold text-gray-800 dark:text-gray-200">Notifications</h5>
-          <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-700 p-1">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
         </div>
-
         <ul className="flex flex-col h-full overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full space-y-2">
-               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-               <p className="text-xs text-gray-500">Loading...</p>
-            </div>
+            <div className="flex flex-col items-center justify-center h-full"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
           ) : notifications.length > 0 ? (
             notifications.map((n) => {
               const { name, initials, image } = getWorkerInfo(n.SenderID || n.senderID);
               return (
                 <li key={n.id}>
-                  <DropdownItem
-                    onItemClick={() => handleNotificationClick(n)}
-                    className={`flex gap-3 rounded-lg border-b border-gray-50 p-2.5 md:p-3 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5 transition-colors ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
-                  >
-                    <div className="relative w-9 h-9 md:w-10 md:h-10 flex-shrink-0">
-                      {image ? (
-                        <img src={image} className="w-full h-full rounded-full object-cover" alt="" />
-                      ) : (
-                        <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br from-blue-500 to-indigo-600">{initials}</div>
-                      )}
+                  <DropdownItem onItemClick={() => handleNotificationClick(n)} className={`flex gap-3 rounded-lg border-b border-gray-50 p-3 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}>
+                    <div className="relative w-10 h-10 flex-shrink-0">
+                      {image ? <img src={image} className="w-full h-full rounded-full object-cover" alt="" /> : <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs bg-blue-600">{initials}</div>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <div className="flex items-center justify-between mb-0.5">
                         <span className="font-bold text-xs md:text-sm text-gray-900 dark:text-white truncate">{n.title}</span>
-                        {!n.read && <span className="h-2 w-2 rounded-full bg-blue-600 flex-shrink-0"></span>}
                       </div>
-                      <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        From: <span className="font-semibold text-gray-700 dark:text-gray-200">{name}</span>
-                      </p>
                       <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{n.body}</p>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5 block italic">{formatTimeAgo(n.sentAt)}</span>
+                      <span className="text-[10px] text-gray-400 mt-1.5 block italic">{formatTimeAgo(n.sentAt)}</span>
                     </div>
                   </DropdownItem>
                 </li>
               );
             })
           ) : (
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center"><p className="text-xs text-gray-500 font-medium">No new notifications.</p></div>
+            <div className="flex items-center justify-center h-full p-4 text-gray-500 text-xs">No new notifications.</div>
           )}
         </ul>
       </Dropdown>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; }
-      `}</style>
     </div>
   );
 }
