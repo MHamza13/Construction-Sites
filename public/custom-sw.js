@@ -8,23 +8,30 @@ self.addEventListener('push', function (event) {
       const title = n.title || "New Message";
       const sID = n.SenderID || n.senderID;
       const pID = n.projectID || n.projectId || 'default';
-      const type = n.type || "";
+      const type = (n.type || "").toLowerCase();
+      const lowerTitle = title.toLowerCase();
       
-      // Destination Logic - Fixed "chsssat" typo to "chat"
-      let destination = n.link || (
-        (type === "chat" || title.toLowerCase().includes("chat")) 
-        ? "/chat" 
-        : `/project-worker/${sID}?projectid=${pID}`
-      );
+      // --- Centralized Destination Logic (Matching React Component) ---
+      let destination = '/'; // Default fallback
+
+      if (n.link) {
+        destination = n.link; // Direct link if provided
+      } 
+      else if (type === "chat" || lowerTitle.includes("chat")) {
+        destination = "/chat"; // Chat route
+      } 
+      else if (type === "project" || pID !== 'default') {
+        destination = `/project-worker/${sID}?projectid=${pID}`; // Project route
+      }
 
       const options = {
         body: n.body || "Click to view details",
         icon: '/images/logo/logo-icon.png',
         badge: '/images/logo/logo-icon.png',
-        data: { url: destination },
+        data: { url: destination }, // Click event ke liye destination save kiya
         tag: n.id || 'renotify',
         renotify: true,
-        vibrate: [200, 100, 200] // Added vibration for better mobile feel
+        vibrate: [200, 100, 200]
       };
 
       event.waitUntil(self.registration.showNotification(title, options));
@@ -37,19 +44,19 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
 
-  // URL ko properly form karna
+  // Relative path ko Absolute URL mein convert karna
   const urlToOpen = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // 1. Check if the specific page is already open
+      // 1. Agar wahi exact URL pehle se khula hai toh sirf focus karo
       for (const client of windowClients) {
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
 
-      // 2. Check if any app window is open, then navigate that window
+      // 2. Agar koi bhi window khuli hai (lekin kisi aur page par), toh navigate karo
       if (windowClients.length > 0) {
         const client = windowClients[0];
         if ('navigate' in client) {
@@ -57,7 +64,7 @@ self.addEventListener('notificationclick', function (event) {
         }
       }
 
-      // 3. If no window is open, open a new one
+      // 3. Agar app band hai, toh naya tab/window kholo
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

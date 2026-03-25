@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useRouter } from "next/navigation"; // Navigation ke liye added
+import { useRouter } from "next/navigation"; 
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { db } from "@/firebase/Firebase";
@@ -38,7 +38,6 @@ function formatTimeAgo(timestamp: any): string {
   return Math.floor(seconds) + "s ago";
 }
 
-// --- Interfaces ---
 interface Notification {
   id: string;
   title: string;
@@ -57,33 +56,49 @@ export default function NotificationDropdown() {
   const [isLoading, setIsLoading] = useState(true);
   const isFirstRun = useRef(true); 
 
-  const router = useRouter(); // For SPA Navigation
+  const router = useRouter(); 
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // --- Logic for Destination URL ---
+  // --- Properly Structured Navigation Logic ---
   const getDestination = (n: Notification) => {
-    const lowerTitle = (n.title || "").toLowerCase();
-    return n.link || (
-      (n.type === "chat" || lowerTitle.includes("chat")) 
-      ? "/chat" 
-      : `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`
-    );
+    const notificationType = n.type?.toLowerCase();
+    const notificationTitle = (n.title || "").toLowerCase();
+
+    // 1. Agar Firestore se pehle hi specific link aa raha hai
+    if (n.link) {
+      return n.link;
+    } 
+    // 2. Chat Logic (Check type OR title keyword)
+    else if (notificationType === "chat" || notificationTitle.includes("chat")) {
+      return "/chat";
+    } 
+    // 3. Project Logic (Check type OR projectID presence)
+    else if (notificationType === "project" || n.projectID) {
+      const pID = n.projectID || 'default';
+      const sID = n.SenderID;
+      return `/project-worker/${sID}?projectid=${pID}`;
+    } 
+    // 4. Fallback (Default path agar kuch match na ho)
+    else {
+      return "/"; 
+    }
   };
 
   useEffect(() => {
     dispatch(fetchWorkers());
 
-    // Capacitor Native Listener
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.addListener("localNotificationActionPerformed", (action: ActionPerformed) => {
         const data = action.notification.extra;
-        if (data) router.push(getDestination(data));
+        if (data) {
+          const path = getDestination(data);
+          router.push(path);
+        }
       });
     }
   }, [dispatch, router]);
 
-  // --- Push Notification Trigger (Capacitor + PWA) ---
   const triggerPush = async (n: Notification) => {
     const destination = getDestination(n);
 
@@ -91,27 +106,25 @@ export default function NotificationDropdown() {
       await LocalNotifications.schedule({
         notifications: [{
           title: n.title || "New Message",
-          body: n.body || "You have a new notification",
+          body: n.body || "New update in RBS",
           id: Math.floor(Math.random() * 10000),
           channelId: 'rbs_notifications',
           smallIcon: 'ic_stat_name', 
-          extra: { ...n, link: destination } // Native navigation data
+          extra: { ...n, link: destination } 
         }]
       });
     } else if ('serviceWorker' in navigator && Notification.permission === 'granted') {
-      // PWA Browser Logic
       const registration = await navigator.serviceWorker.ready;
       registration.showNotification(n.title, {
         body: n.body,
         icon: '/images/logo/logo-icon.png',
-        data: { url: destination }, // PWA SW click navigation data
+        data: { url: destination }, 
         tag: n.id,
         renotify: true
       });
     }
   };
 
-  // Fetch notifications & Sync with Push
   useEffect(() => {
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
 
@@ -203,22 +216,29 @@ export default function NotificationDropdown() {
       > 
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-gray-700">
           <h5 className="text-sm md:text-base font-bold text-gray-800 dark:text-gray-200">Notifications</h5>
-          <button onClick={closeDropdown} className="text-gray-400 p-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+          <button onClick={closeDropdown} className="text-gray-400 p-1">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
         <ul className="flex flex-col h-full overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
           ) : notifications.length > 0 ? (
             notifications.map((n) => {
               const { name, initials, image } = getWorkerInfo(n.SenderID);
-              const destination = getDestination(n);
+              const destination = getDestination(n); 
               return (
                 <li key={n.id}>
                   <DropdownItem
                     onItemClick={() => {
                       closeDropdown();
-                      router.push(destination); // Manual click navigation
+                      router.push(destination); 
                     }}
                     className={`flex gap-3 rounded-lg border-b border-gray-50 p-3 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
                   >
@@ -239,7 +259,9 @@ export default function NotificationDropdown() {
               );
             })
           ) : (
-            <div className="flex flex-col items-center justify-center h-full p-4"><p className="text-xs text-gray-500">No new notifications.</p></div>
+            <div className="flex flex-col items-center justify-center h-full p-4">
+               <p className="text-xs text-gray-500">No new notifications.</p>
+            </div>
           )}
         </ul>
       </Dropdown>
