@@ -1,4 +1,109 @@
-return (
+"use client";
+import React, { useState, useEffect, useRef } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation"; 
+import { db } from "@/firebase/Firebase";
+import { collection, onSnapshot, query, orderBy, updateDoc, doc, Timestamp } from "firebase/firestore";
+import { fetchWorkers } from "@/redux/worker/workerSlice";
+import { AppDispatch, RootState } from "@/redux/store";
+import { LocalNotifications, ActionPerformed } from "@capacitor/local-notifications";
+import { Capacitor } from "@capacitor/core";
+
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  sentAt: any;
+  SenderID?: number;
+  read: boolean;
+  link?: string; 
+  type?: "project" | "chat" | "general";
+  projectID?: string | number;
+}
+
+export default function NotificationDropdown() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const sessionStartTime = useRef(Timestamp.now().toMillis());
+  
+  const router = useRouter(); 
+  const dispatch = useDispatch<AppDispatch>();
+  const { items: workers } = useSelector((state: RootState) => state.workers);
+
+  const handleNavigation = (data: any) => {
+    const lowerTitle = (data.title || "").toLowerCase();
+    const destination = data.link || (data.type === "chat" || lowerTitle.includes("chat") 
+      ? "/chat" 
+      : `/project-worker/${data.SenderID}?projectid=${data.projectID || 'default'}`);
+    router.push(destination);
+  };
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.addListener("localNotificationActionPerformed", (action: ActionPerformed) => {
+        const data = action.notification.extra;
+        if (data) handleNavigation(data);
+      });
+    } else if ("Notification" in window) {
+      Notification.requestPermission();
+    }
+    dispatch(fetchWorkers());
+  }, [dispatch]);
+
+  const triggerPush = async (n: Notification) => {
+    const lowerTitle = (n.title || "").toLowerCase();
+    const destination = n.link || (n.type === "chat" || lowerTitle.includes("chat") 
+      ? "/chat" 
+      : `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`);
+
+    if (Capacitor.isNativePlatform()) {
+      await LocalNotifications.schedule({
+        notifications: [{
+          title: n.title,
+          body: n.body,
+          id: Math.floor(Math.random() * 10000),
+          extra: { ...n, link: destination }
+        }]
+      });
+    } else if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.ready;
+      registration.showNotification(n.title, {
+        body: n.body,
+        icon: '/images/logo/logo-icon.png',
+        data: { url: destination }, // PWA Navigation Link
+        tag: n.id,
+        renotify: true
+      });
+    }
+  };
+
+  useEffect(() => {
+    const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      querySnapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const newNotif = change.doc.data() as Notification;
+          if ((newNotif.sentAt?.toMillis() || 0) > sessionStartTime.current) {
+            if (workers.some(w => w.id === newNotif.SenderID)) {
+              triggerPush(newNotif);
+            }
+          }
+        }
+      });
+      const fetched: Notification[] = [];
+      querySnapshot.forEach((d) => {
+        fetched.push({ id: d.id, ...d.data(), read: d.data().read ?? false } as Notification);
+      });
+      setNotifications(fetched.filter(n => workers.some(w => w.id === n.SenderID)));
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [workers]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+ return (
     <div className="relative">
       {/* Notification Icon Button */}
       <button 
@@ -98,3 +203,4 @@ return (
       )}
     </div>
   );
+}
