@@ -74,36 +74,43 @@ export default function NotificationDropdown() {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
-  // --- TRIGGER PUSH (Only for Brand New Items) ---
-  const triggerPush = async (n: Notification) => {
-    // Exact same routing logic for Service Worker & Capacitor
-    const lowerTitle = (n.title || "").toLowerCase();
-    const destination = n.link || (n.type === "chat" || lowerTitle.includes("chat") 
-      ? "/chat" 
-      : `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`);
+// NotificationDropdown.tsx ke andar triggerPush function ko is se replace karein:
 
-    // 1. Mobile (Capacitor)
-    if (Capacitor.isNativePlatform()) {
-      await LocalNotifications.schedule({
-        notifications: [{
-          title: n.title || "New Message",
-          body: n.body || "You have a new notification",
-          id: Date.now(), // Unique ID
-          extra: { ...n, link: destination }
-        }]
-      });
-    } 
-    // 2. PWA (Web Browser)
-    else if ('serviceWorker' in navigator && Notification.permission === 'granted') {
-      const registration = await navigator.serviceWorker.ready;
-      registration.showNotification(n.title || "New Message", {
-        body: n.body || "Click to open",
-        icon: '/images/logo/logo-icon.png',
-        badge: '/images/logo/logo-icon.png',
-        data: { url: destination } // Custom-sw.js will use this 'url'
-      });
-    }
-  };
+const triggerPush = async (n: Notification) => {
+  // Common Logic for Link
+  const lowerTitle = (n.title || "").toLowerCase();
+  const destination = n.link || (n.type === "chat" || lowerTitle.includes("chat") 
+    ? "/chat" 
+    : `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`);
+
+  // 1. Mobile (Capacitor)
+  if (Capacitor.isNativePlatform()) {
+    await LocalNotifications.schedule({
+      notifications: [{
+        title: n.title,
+        body: n.body,
+        id: Math.floor(Math.random() * 10000), // Unique ID
+        extra: { ...n, link: destination }
+      }]
+    });
+  } 
+  // 2. PWA (Web Browser)
+  else if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+    const registration = await navigator.serviceWorker.ready;
+    
+    // Yahan hum manual options bhej rahe hain jo direct browser dikha deta hai
+    // Hum wahi keys bhej rahe hain jo Firebase mein hain
+    registration.showNotification(n.title, {
+      body: n.body,
+      icon: '/images/logo/logo-icon.png',
+      badge: '/images/logo/logo-icon.png',
+      vibrate: [200, 100, 200],
+      data: { url: destination }, // Click handle karne ke liye
+      tag: n.id,
+      renotify: true
+    });
+  }
+};
 
   useEffect(() => {
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
