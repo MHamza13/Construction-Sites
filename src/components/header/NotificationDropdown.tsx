@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation"; 
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { db } from "@/firebase/Firebase";
@@ -45,23 +46,25 @@ interface Notification {
   sentAt: any;
   SenderID?: number;
   read: boolean;
+  link?: string; 
+  type?: "project" | "chat" | "general"; // Notification type check karne ke liye
+  projectID?: string | number;           // Dynamic ID ke liye
 }
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isFirstRun = useRef(true); // Pehli dafa purani notifications ko skip karne ke liye
-
+  const isFirstRun = useRef(true);
+  
+  const router = useRouter(); 
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // Fetch workers once
   useEffect(() => {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
-  // --- Push Notification Trigger ---
   const triggerPush = async (n: Notification) => {
     if (!Capacitor.isNativePlatform()) return;
     
@@ -76,18 +79,15 @@ export default function NotificationDropdown() {
     });
   };
 
-  // Fetch notifications & Sync with Push
   useEffect(() => {
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedNotifications: Notification[] = [];
       
-      // Firestore Changes Detect Karein
       querySnapshot.docChanges().forEach((change) => {
         if (change.type === "added" && !isFirstRun.current) {
           const newNotif = change.doc.data() as Notification;
-          // Sync check: Agar Sender worker list mein hai
           if (workers.some(w => w.id === newNotif.SenderID)) {
              triggerPush(newNotif);
           }
@@ -109,27 +109,47 @@ export default function NotificationDropdown() {
 
       setNotifications(validNotifications);
       setIsLoading(false);
-      isFirstRun.current = false; // Initial load ke baad added docs ko trigger hone dein
+      isFirstRun.current = false;
     });
 
     return () => unsubscribe();
   }, [workers]); 
 
-  const markAllAsRead = async () => {
-    try {
-      const unread = notifications.filter((n) => !n.read);
-      for (const n of unread) {
+  // --- Dynamic Route Handler ---
+  const handleNotificationClick = async (n: Notification) => {
+    setIsOpen(false); 
+
+    // Firestore Read Status Update
+    if (!n.read) {
+      try {
         const ref = doc(db, "notification", n.id);
         await updateDoc(ref, { read: true });
+      } catch (error) {
+        console.error("Error updating notification status:", error);
       }
-    } catch (error) {
-      console.error("Error marking as read:", error);
     }
-  };
 
-  const handleClick = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) markAllAsRead();
+    /**
+     * ROUTING LOGIC:
+     * 1. Agar Chat hai: /chat
+     * 2. Agar Project hai: /project-worker/[SenderID]?projectid=[projectID]
+     * 3. Agar Direct Link hai: n.link use karein
+     */
+    const lowerTitle = n.title.toLowerCase();
+    
+    if (n.type === "chat" || lowerTitle.includes("chat") || lowerTitle.includes("message")) {
+      router.push("/chat");
+    } 
+    else if (n.type === "project" || lowerTitle.includes("project")) {
+      // Dynamic route as requested: project-worker/46?projectid=54
+      const pId = n.projectID || "default"; 
+      router.push(`/project-worker/${n.SenderID}?projectid=${pId}`);
+    } 
+    else if (n.link) {
+      router.push(n.link);
+    } else {
+      console.log("No specific route found");
+    }
   };
 
   const closeDropdown = () => setIsOpen(false);
@@ -150,7 +170,7 @@ export default function NotificationDropdown() {
   return (
     <div className="relative">
       <button
-        onClick={handleClick}
+        onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-10 w-10 md:h-11 md:w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
       >
         {unreadCount > 0 && (
@@ -182,8 +202,8 @@ export default function NotificationDropdown() {
               return (
                 <li key={n.id}>
                   <DropdownItem
-                    onItemClick={closeDropdown}
-                    className={`flex gap-3 rounded-lg border-b border-gray-50 p-3 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
+                    onItemClick={() => handleNotificationClick(n)} 
+                    className={`flex gap-3 rounded-lg border-b border-gray-50 p-3 hover:bg-gray-50 cursor-pointer dark:border-gray-800 dark:hover:bg-white/5 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
                   >
                     <div className="relative w-9 h-9 md:w-10 md:h-10 flex-shrink-0">
                       {image ? <img src={image} alt={name} className="w-full h-full rounded-full object-cover" /> : <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br from-blue-500 to-indigo-600">{initials}</div>}
