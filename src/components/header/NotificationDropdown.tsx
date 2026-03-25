@@ -59,19 +59,29 @@ export default function NotificationDropdown() {
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // --- Unified Navigation Logic ---
+  // --- Unified Navigation Logic (Fixed Order) ---
   const getDestination = useCallback((n: any) => {
+    // 1. Priority: Direct Link
     if (n.link) return n.link;
+
     const type = (n.type || "").toLowerCase();
     const title = (n.title || "").toLowerCase();
 
+    // 2. Chat Logic (Must be checked BEFORE projectID/SenderID)
     if (type === "chat" || title.includes("chat")) {
       return "/chat";
-    } else {
-      const sID = n.SenderID || n.senderID;
-      const pID = n.projectID || n.projectId || 'default';
+    } 
+    
+    // 3. Project Logic
+    const sID = n.SenderID || n.senderID;
+    const pID = n.projectID || n.projectId;
+
+    if (sID && pID) {
       return `/project-worker/${sID}?projectid=${pID}`;
     }
+
+    // 4. Default Fallback
+    return "/";
   }, []);
 
   // --- Push Trigger ---
@@ -115,7 +125,6 @@ export default function NotificationDropdown() {
       const fetched: Notification[] = [];
       
       snapshot.docChanges().forEach((change) => {
-        // Sirf REAL-TIME naye notifications par alert do
         if (change.type === "added" && !isFirstRun.current) {
           const newNotif = change.doc.data() as Notification;
           if (workers.some(w => w.id === newNotif.SenderID)) {
@@ -133,7 +142,7 @@ export default function NotificationDropdown() {
 
       setNotifications(fetched);
       setIsLoading(false);
-      isFirstRun.current = false; // Isse purane notifications repeat nahi honge
+      isFirstRun.current = false; 
     });
 
     return () => unsubscribe();
