@@ -18,13 +18,12 @@ import { AppDispatch, RootState } from "@/redux/store";
 import { LocalNotifications, ActionPerformed } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 
-// --- Time Formatting (As per your old UI) ---
+// --- Time Formatting ---
 function formatTimeAgo(timestamp: any): string {
   if (!timestamp) return "";
   const now = new Date();
   const sentDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   const seconds = Math.floor((now.getTime() - sentDate.getTime()) / 1000);
-
   let interval = seconds / 31536000;
   if (interval > 1) return Math.floor(interval) + "y ago";
   interval = seconds / 2592000;
@@ -48,61 +47,75 @@ export default function NotificationDropdown() {
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // --- 1. NEW Navigation Logic (Integrated) ---
+  // --- 1. Navigation Logic ---
   const getDestination = useCallback((n: any) => {
     const rawType = n.Type || n.type || "";
     const type = rawType.toLowerCase().trim().replace(/\s/g, "");
     const sID = n.SenderID || n.senderID;
     const pID = n.projectId || n.projectID || n.projectid;
 
-    console.log(`🎯 Nav Trace -> Type: "${type}", sID: ${sID}, pID: ${pID}`);
-
     if (n.link) return n.link;
-
     if (type === "projectchat" || type.includes("projectchat")) {
       if (sID && pID) return `/project-worker/${sID}?projectid=${pID}`;
       return "/chat";
     }
-
     if (type === "chat" || (n.title && n.title.toLowerCase().includes("chat"))) {
       return "/chat";
     }
-
     return "/";
   }, []);
 
-  // --- 2. Handlers ---
-  const handleNotificationClick = async (n: any) => {
-    setIsOpen(false);
-    const path = getDestination(n);
-    
-    if (!n.read) {
-      try {
-        await updateDoc(doc(db, "notification", n.id), { read: true });
-      } catch (error) {
-        console.error("❌ Error marking read:", error);
-      }
-    }
-    router.push(path);
-  };
-
+  // --- 2. PWA & Native Push Logic ---
   const triggerPush = useCallback(async (n: any) => {
     const destination = getDestination(n);
+    const title = n.title || "RBS Update";
+    const body = n.body || "New update received";
+
+    // A. Native Platform (Capacitor)
     if (Capacitor.isNativePlatform()) {
       await LocalNotifications.schedule({
         notifications: [{
-          title: n.title || "RBS Update",
-          body: n.body || "New update received",
+          title: title,
+          body: body,
           id: Math.floor(Math.random() * 10000),
-          extra: { destination, notifId: n.id } 
+          extra: { destination, notifId: n.id },
+          smallIcon: "res://notification_icon", // Make sure this exists in Android
         }]
       });
+    } 
+    // B. Web/PWA Platform
+    else if ("Notification" in window && Notification.permission === "granted") {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        const registration = await navigator.serviceWorker.ready;
+        registration.showNotification(title, {
+          body: body,
+          icon: "/images/logo/logo-icon.png", // Correct path to your icon
+          badge: "/images/logo/logo-icon.png",
+          data: { url: destination },
+          tag: n.id || "rbs-notif",
+          renotify: true
+        });
+      }
     }
   }, [getDestination]);
 
-  // --- 3. Effects ---
+  // --- 3. Initial Setup (Permissions & Workers) ---
   useEffect(() => {
     dispatch(fetchWorkers());
+
+    // Register Service Worker for PWA
+    if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
+      navigator.serviceWorker.register("/custom-sw.js")
+        .then((reg) => console.log("SW Registered for PWA"))
+        .catch((err) => console.error("SW Registration failed", err));
+    }
+
+    // Request Browser Notification Permission
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    // Capacitor Listener
     if (Capacitor.isNativePlatform()) {
       const listener = LocalNotifications.addListener("localNotificationActionPerformed", (action: ActionPerformed) => {
         const path = action.notification.extra?.destination;
@@ -112,6 +125,7 @@ export default function NotificationDropdown() {
     }
   }, [dispatch, router]);
 
+  // --- 4. Firestore Listener ---
   useEffect(() => {
     if (workers.length === 0) return;
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
@@ -120,6 +134,7 @@ export default function NotificationDropdown() {
       const fetched: any[] = [];
       
       snapshot.docChanges().forEach((change) => {
+        // Trigger only for NEW notifications after initial load
         if (change.type === "added" && !isFirstRun.current) {
           triggerPush({ id: change.doc.id, ...change.doc.data() });
         }
@@ -130,7 +145,7 @@ export default function NotificationDropdown() {
         fetched.push({ id: d.id, ...data, read: data.read ?? false });
       });
 
-      // Filter: Sirf wo notifs dikhayein jin ka worker system mein exist karta ho
+      // Filter: Show only notifications where sender exists in worker list
       const validNotifications = fetched.filter((n) =>
         workers.some((w) => String(w.id) === String(n.SenderID || n.senderID))
       );
@@ -142,7 +157,20 @@ export default function NotificationDropdown() {
     return () => unsubscribe();
   }, [workers, triggerPush]);
 
-  // --- 4. UI Helpers (Old UI Logic) ---
+  // --- 5. UI Handlers ---
+  const handleNotificationClick = async (n: any) => {
+    setIsOpen(false);
+    const path = getDestination(n);
+    if (!n.read) {
+      try {
+        await updateDoc(doc(db, "notification", n.id), { read: true });
+      } catch (error) {
+        console.error("❌ Error marking read:", error);
+      }
+    }
+    router.push(path);
+  };
+
   const getWorkerInfo = (sID?: any) => {
     const worker = workers.find((w) => String(w.id) === String(sID));
     if (!worker) return { name: "System", initials: "R", image: null };
@@ -159,7 +187,6 @@ export default function NotificationDropdown() {
 
   return (
     <div className="relative">
-      {/* Bell Icon */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-10 w-10 md:h-11 md:w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
@@ -174,7 +201,6 @@ export default function NotificationDropdown() {
         </svg>
       </button>
 
-      {/* Dropdown Menu */}
       <Dropdown
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
@@ -204,7 +230,7 @@ export default function NotificationDropdown() {
                   >
                     <div className="relative w-9 h-9 md:w-10 md:h-10 flex-shrink-0">
                       {image ? (
-                        <img src={image} className="w-full h-full rounded-full object-cover ring-1 ring-gray-100 dark:ring-gray-700" alt="" />
+                        <img src={image} className="w-full h-full rounded-full object-cover" alt="" />
                       ) : (
                         <div className="absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br from-blue-500 to-indigo-600">{initials}</div>
                       )}
