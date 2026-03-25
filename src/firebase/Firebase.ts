@@ -20,37 +20,40 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
-// Messaging instance sirf Web ke liye (Safely handle kiya gaya hai)
+/** * IMPORTANT: Mobile (Android/iOS) par 'firebase/messaging' use NAHI hota.
+ * Hum sirf Web Browser ke liye isko initialize kar rahe hain.
+ */
 export const messaging: Messaging | null = 
   typeof window !== "undefined" && !Capacitor.isNativePlatform() && ("serviceWorker" in navigator)
     ? getMessaging(app) 
     : null;
 
-// --- Token function for WEB only ---
+// --- Token function (SIRF WEB KE LIYE) ---
 export const getFCMToken = async () => {
-  try {
-    if (Capacitor.isNativePlatform() || !messaging) return null;
+  if (Capacitor.isNativePlatform()) {
+    console.log("RBS_DEBUG: Skipping Web FCM Token because this is Native Platform.");
+    return null; 
+  }
 
+  try {
+    if (!messaging) return null;
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return "permission-denied";
 
-    const token = await getToken(messaging, {
+    return await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
     });
-
-    return token || null;
   } catch (error) {
     console.error("❌ FCM Web Error:", error);
     return null;
   }
 };
 
-// --- Foreground Listener for WEB only ---
+// --- Foreground Listener (SIRF WEB KE LIYE) ---
 export const onMessageListener = () =>
   new Promise((resolve) => {
     if (messaging) {
       onMessage(messaging, (payload) => {
-        console.log("Web Foreground Message:", payload);
         resolve(payload);
       });
     }
