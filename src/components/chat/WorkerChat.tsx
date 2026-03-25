@@ -299,7 +299,7 @@ const WorkerChat = () => {
                 </div>
                 <div className="flex justify-between items-center mt-0.5">
                   <p className={`text-xs truncate max-w-[140px] ${activeChat === w.id ? "text-blue-100" : "text-gray-500"}`}>
-                    {lastMessages[w.id]?.text || (userStatus[w.id] ? "Online" : "Offline")}
+                    {lastMessages[w.id]?.text || (userStatus[w.id] ? "Online" : "")}
                   </p>
                   {unreadCounts[w.id] > 0 && (
                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1">
@@ -325,7 +325,7 @@ const WorkerChat = () => {
               <div className="min-w-0">
                 <h2 className="font-bold text-sm md:text-base truncate">{selectedWorker.firstName} {selectedWorker.lastName}</h2>
                 <span className={`text-[10px] font-medium ${userStatus[selectedWorker.id] ? "text-green-500" : "text-gray-400"}`}>
-                  {userStatus[selectedWorker.id] ? "Online" : "Offline"}
+                  {userStatus[selectedWorker.id] ? "Online" : ""}
                 </span>
               </div>
             </header>
