@@ -1,14 +1,28 @@
-// 1. Push Event: Jab server se notification aaye
 self.addEventListener('push', function (event) {
-  let data = { 
-    title: 'New Notification', 
-    body: 'Check it out!', 
-    url: '/' 
-  };
+  let data = { title: '', body: '', url: '' };
 
   if (event.data) {
     try {
-      data = event.data.json();
+      const payload = event.data.json();
+      
+      // --- Aapka Logic Yahan Start Hota Hai ---
+      const lowerTitle = (payload.title || "").toLowerCase();
+      let destination = payload.link || "/";
+
+      // Agar link nahi hai, toh title ya type se check karein
+      if (!payload.link) {
+        if (payload.type === "chat" || lowerTitle.includes("chat")) {
+          destination = "/chat";
+        } else if (payload.SenderID) {
+          destination = `/project-worker/${payload.SenderID}?projectid=${payload.projectID || 'default'}`;
+        }
+      }
+      
+      data = {
+        title: payload.title || "New Notification",
+        body: payload.body || "Check it out!",
+        url: destination // Final destination url
+      };
     } catch (e) {
       data.body = event.data.text();
     }
@@ -16,22 +30,14 @@ self.addEventListener('push', function (event) {
 
   const options = {
     body: data.body,
-    icon: '/images/logo/logo-icon.png', // Aapke folder structure ke mutabiq fix kiya
+    icon: '/images/logo/logo-icon.png',
     badge: '/images/logo/logo-icon.png',
-    
-    // Sound aur Vibration
     vibrate: [200, 100, 200],
-    // Note: Browser sounds sirf tab bajte hain agar browser/OS allow kare
     data: {
-      url: data.url || '/'
+      url: data.url
     },
-    
-    // Notification behavior
     tag: 'renotify-tag',
-    renotify: true,
-    actions: [
-      { action: 'open', title: 'Open App' }
-    ]
+    renotify: true
   };
 
   event.waitUntil(
@@ -39,24 +45,19 @@ self.addEventListener('push', function (event) {
   );
 });
 
-// 2. Notification Click: Jab user notification par click kare
 self.addEventListener('notificationclick', function (event) {
-  event.notification.close(); // Notification ko khatam karein
+  event.notification.close();
 
-  // Target URL nikalain jo humne push data mein bheja tha
   const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      // Check karein agar app pehle se khuli hai
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // Usi tab ko navigate karein aur focus dein
           client.navigate(targetUrl);
           return client.focus();
         }
       }
-      // Agar app band hai, toh naya window/tab kholain
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }
