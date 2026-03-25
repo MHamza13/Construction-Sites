@@ -9,7 +9,8 @@ import {
   query,
   orderBy,
   updateDoc,
-  doc,   
+  doc,
+  Timestamp, 
 } from "firebase/firestore";
 import { fetchWorkers } from "@/redux/worker/workerSlice";
 import { AppDispatch, RootState } from "@/redux/store";
@@ -33,13 +34,15 @@ export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isFirstRun = useRef(true);
+  
+  // Isse hum track rakhenge ke app kab load hui
+  const sessionStartTime = useRef(Timestamp.now().toMillis());
   
   const router = useRouter(); 
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
-  // --- Common Routing Logic (For UI & Capacitor Click) ---
+  // --- Common Routing Logic ---
   const handleNavigation = (data: any) => {
     const lowerTitle = (data.title || "").toLowerCase();
     const destination = data.link || (data.type === "chat" || lowerTitle.includes("chat") 
@@ -49,7 +52,7 @@ export default function NotificationDropdown() {
     router.push(destination);
   };
 
-  // --- Capacitor Specific Listener ---
+  // --- Notification Listeners ---
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       const listener = LocalNotifications.addListener(
@@ -61,7 +64,6 @@ export default function NotificationDropdown() {
       );
       return () => { listener.remove(); };
     } else {
-      // PWA Permission Request
       if ("Notification" in window) {
         Notification.requestPermission();
       }
@@ -72,9 +74,13 @@ export default function NotificationDropdown() {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
-  // --- TRIGGER NOTIFICATION (Mobile & PWA) ---
+  // --- TRIGGER PUSH (Only for Brand New Items) ---
   const triggerPush = async (n: Notification) => {
-    const destination = n.link || `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`;
+    // Exact same routing logic for Service Worker & Capacitor
+    const lowerTitle = (n.title || "").toLowerCase();
+    const destination = n.link || (n.type === "chat" || lowerTitle.includes("chat") 
+      ? "/chat" 
+      : `/project-worker/${n.SenderID}?projectid=${n.projectID || 'default'}`);
 
     // 1. Mobile (Capacitor)
     if (Capacitor.isNativePlatform()) {
@@ -82,7 +88,7 @@ export default function NotificationDropdown() {
         notifications: [{
           title: n.title || "New Message",
           body: n.body || "You have a new notification",
-          id: 1,
+          id: Date.now(), // Unique ID
           extra: { ...n, link: destination }
         }]
       });
@@ -94,19 +100,25 @@ export default function NotificationDropdown() {
         body: n.body || "Click to open",
         icon: '/images/logo/logo-icon.png',
         badge: '/images/logo/logo-icon.png',
-        data: { link: destination } // Ye custom-sw.js mein use hoga
+        data: { url: destination } // Custom-sw.js will use this 'url'
       });
     }
   };
 
   useEffect(() => {
     const q = query(collection(db, "notification"), orderBy("sentAt", "desc"));
+    
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       querySnapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && !isFirstRun.current) {
+        // Sirf tab trigger ho jab naya document add ho AUR wo current session ke baad ka ho
+        if (change.type === "added") {
           const newNotif = change.doc.data() as Notification;
-          if (workers.some(w => w.id === newNotif.SenderID)) {
-            triggerPush(newNotif);
+          const notifTime = newNotif.sentAt?.toMillis() || 0;
+
+          if (notifTime > sessionStartTime.current) {
+            if (workers.some(w => w.id === newNotif.SenderID)) {
+              triggerPush(newNotif);
+            }
           }
         }
       });
@@ -116,9 +128,9 @@ export default function NotificationDropdown() {
         fetched.push({ id: d.id, ...d.data(), read: d.data().read ?? false } as Notification);
       });
 
+      // UI mein saari notifications dikhate rahein jo workers se match karti hain
       setNotifications(fetched.filter(n => workers.some(w => w.id === n.SenderID)));
       setIsLoading(false);
-      isFirstRun.current = false;
     });
 
     return () => unsubscribe();
@@ -137,9 +149,9 @@ export default function NotificationDropdown() {
 
   return (
     <div className="relative">
-      <button onClick={() => setIsOpen(!isOpen)} className="relative h-10 w-10 border rounded-full flex items-center justify-center dark:border-gray-800">
+      <button onClick={() => setIsOpen(!isOpen)} className="relative h-10 w-10 border rounded-full flex items-center justify-center dark:border-gray-800 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800">
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+          <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold animate-pulse">
             {unreadCount}
           </span>
         )}
@@ -148,19 +160,27 @@ export default function NotificationDropdown() {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 shadow-xl rounded-lg border dark:border-gray-800 z-50 overflow-hidden">
-          <div className="p-3 border-b dark:border-gray-800 font-bold">Notifications</div>
+          <div className="p-3 border-b dark:border-gray-800 font-bold flex justify-between items-center">
+            <span>Notifications</span>
+            {unreadCount > 0 && <span className="text-xs text-blue-500 font-normal">{unreadCount} New</span>}
+          </div>
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">No notifications</div>
+            {isLoading ? (
+               <div className="p-4 text-center text-xs text-gray-400">Loading...</div>
+            ) : notifications.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">No notifications found</div>
             ) : (
               notifications.map((n) => (
                 <div 
                   key={n.id} 
                   onClick={() => handleNotificationClick(n)}
-                  className={`p-3 border-b dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${!n.read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                  className={`p-3 border-b dark:border-gray-800 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-gray-800 ${!n.read ? 'bg-blue-50/40 dark:bg-blue-900/10 border-l-4 border-l-blue-500' : 'opacity-80'}`}
                 >
                   <p className="text-sm font-semibold">{n.title}</p>
                   <p className="text-xs text-gray-500 truncate">{n.body}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    {n.sentAt ? new Date(n.sentAt.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </p>
                 </div>
               ))
             )}
