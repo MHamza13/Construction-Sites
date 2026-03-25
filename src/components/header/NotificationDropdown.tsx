@@ -42,7 +42,6 @@ export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // App khulne ka waqt record karein (taake purani notifications skip hon)
   const appStartTime = useRef(Date.now());
   const isFirstRun = useRef(true); 
 
@@ -50,16 +49,25 @@ export default function NotificationDropdown() {
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
+  // --- Updated Navigation Logic (With Chat ID) ---
   const getDestination = useCallback((n: any) => {
     const rawType = (n.Type || n.type || "").toLowerCase().trim().replace(/\s/g, "");
     const sID = n.SenderID || n.senderID;
     const pID = n.projectId || n.projectID || n.projectid;
+    
     if (n.link) return n.link;
+
+    // 1. Project Chat Logic
     if (rawType === "projectchat" || rawType.includes("projectchat")) {
       if (sID && pID) return `/project-worker/${sID}?projectid=${pID}`;
       return "/chat";
     }
-    if (rawType === "chat" || (n.title && n.title.toLowerCase().includes("chat"))) return "/chat";
+
+    // 2. Normal Chat Logic (Search Params mein ID bhej di)
+    if (rawType === "chat" || (n.title && n.title.toLowerCase().includes("chat"))) {
+      return sID ? `/chat?id=${sID}` : "/chat";
+    }
+
     return "/";
   }, []);
 
@@ -113,14 +121,10 @@ export default function NotificationDropdown() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched: any[] = [];
-      
       snapshot.docChanges().forEach((change) => {
-        // --- NEW LOGIC: Sirf tab dikhayein agar notification abhi aayi ho ---
         if (change.type === "added" && !isFirstRun.current) {
           const data = change.doc.data();
           const sentAtMillis = data.sentAt?.toDate ? data.sentAt.toDate().getTime() : new Date(data.sentAt).getTime();
-          
-          // Agar notification ka time app khulne ke baad ka hai, tabhi push dikhayein
           if (sentAtMillis > appStartTime.current) {
             triggerPush({ id: change.doc.id, ...data });
           }
@@ -143,11 +147,12 @@ export default function NotificationDropdown() {
     return () => unsubscribe();
   }, [workers, triggerPush]);
 
-  // UI rendering code remains same...
   const handleNotificationClick = async (n: any) => {
     setIsOpen(false);
     const path = getDestination(n);
-    if (!n.read) await updateDoc(doc(db, "notification", n.id), { read: true });
+    if (!n.read) {
+        try { await updateDoc(doc(db, "notification", n.id), { read: true }); } catch (e) {}
+    }
     router.push(path);
   };
 
@@ -169,9 +174,7 @@ export default function NotificationDropdown() {
             {unreadCount}
           </span>
         )}
-        <svg className="fill-current" width="18" height="18" viewBox="0 0 20 20">
-          <path d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.2091 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z" fill="currentColor" />
-        </svg>
+        <svg className="fill-current" width="18" height="18" viewBox="0 0 20 20"><path d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.2091 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z" fill="currentColor" /></svg>
       </button>
 
       <Dropdown isOpen={isOpen} onClose={() => setIsOpen(false)} className="fixed left-4 right-4 md:absolute md:left-auto md:right-0 mt-3 flex h-[450px] w-auto md:w-[360px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-[999]">

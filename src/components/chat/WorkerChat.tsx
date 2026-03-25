@@ -17,6 +17,7 @@ import {
   Play,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
+import { useSearchParams } from "next/navigation"; // URL params handle karne ke liye
 import EmojiPicker from "emoji-picker-react";
 import { fetchWorkers } from "@/redux/worker/workerSlice";
 import { sendNotificationToUser } from "@/redux/userDeviceTokken/userDeviceTokkenSlice";
@@ -29,6 +30,9 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  where,
+  getDocs,
+  writeBatch,
 } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/firebase/Firebase";
@@ -63,6 +67,7 @@ export const formatTime = (date) => {
 
 const WorkerChat = () => {
   const dispatch = useDispatch();
+  const searchParams = useSearchParams();
   const { items: workers } = useSelector((state) => state.workers);
   const loginData = useSelector((state) => state.auth);
 
@@ -80,18 +85,9 @@ const WorkerChat = () => {
     return "light";
   });
 
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-  };
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
-
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({}); // Sab workers ke unread counts
   const [input, setInput] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [filePreviews, setFilePreviews] = useState([]);
@@ -105,10 +101,33 @@ const WorkerChat = () => {
   const audioChunksRef = useRef([]);
   const messagesEndRef = useRef(null);
 
+  // 1. URL se ID uthana
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    if (idFromUrl && workers.length > 0) {
+      // Check if id exists in workers list
+      const exists = workers.find(w => String(w.id) === String(idFromUrl));
+      if (exists) {
+        setActiveChat(exists.id);
+      }
+    }
+  }, [searchParams, workers]);
+
   useEffect(() => {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  // Online/Offline Status listener
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const statusMap = {};
@@ -120,6 +139,30 @@ const WorkerChat = () => {
     return () => unsub();
   }, []);
 
+  // 2. Unread Messages Listener for sidebar
+  useEffect(() => {
+    if (!user.userId || workers.length === 0) return;
+
+    const unsubscribers = workers.map((w) => {
+      const chatId = generateChatId(w.id);
+      const q = query(
+        collection(db, "chats", chatId, "messages"),
+        where("read", "==", false),
+        where("senderId", "!=", user.userId)
+      );
+
+      return onSnapshot(q, (snapshot) => {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [w.id]: snapshot.size,
+        }));
+      });
+    });
+
+    return () => unsubscribers.forEach((unsub) => unsub());
+  }, [workers, user.userId]);
+
+  // 3. Messages Fetch & Mark as Read
   useEffect(() => {
     if (!activeChat) {
       setMessages([]);
@@ -136,9 +179,22 @@ const WorkerChat = () => {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
       }));
       setMessages(msgs);
+
+      // Messages ko read mark karna jab chat khula ho
+      const unreadFromOthers = snapshot.docs.filter(
+        (d) => d.data().read === false && d.data().senderId !== user.userId
+      );
+
+      if (unreadFromOthers.length > 0) {
+        const batch = writeBatch(db);
+        unreadFromOthers.forEach((d) => {
+          batch.update(doc(db, "chats", chatId, "messages", d.id), { read: true });
+        });
+        batch.commit();
+      }
     });
     return () => unsubscribe();
-  }, [activeChat]);
+  }, [activeChat, user.userId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -211,7 +267,7 @@ const WorkerChat = () => {
     const receiver = workers.find((w) => w.id === activeChat);
 
     try {
-      await setDoc(doc(db, "chats", chatId), { users: [activeChat], lastUpdated: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, "chats", chatId), { users: [activeChat, user.userId], lastUpdated: serverTimestamp() }, { merge: true });
 
       for (const item of filePreviews) {
         const fileUrl = await uploadFile(item.file, chatId);
@@ -305,10 +361,7 @@ const WorkerChat = () => {
               Team Chat
             </h3>
           </div>
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
+          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
             {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
           </button>
         </div>
@@ -337,9 +390,16 @@ const WorkerChat = () => {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">
-                  {w.firstName} {w.lastName}
-                </p>
+                <div className="flex justify-between items-center">
+                  <p className="font-semibold text-sm truncate">
+                    {w.firstName} {w.lastName}
+                  </p>
+                  {unreadCounts[w.id] > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                      {unreadCounts[w.id]}
+                    </span>
+                  )}
+                </div>
                 <p className={`text-[10px] ${activeChat === w.id ? "text-blue-100" : "text-gray-500"}`}>
                   {userStatus[w.id] ? "Online" : "Offline"}
                 </p>
@@ -358,20 +418,21 @@ const WorkerChat = () => {
         {selectedWorker ? (
           <>
             <header className="flex items-center gap-3 p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10 shadow-sm">
-              <button
-                onClick={() => setActiveChat(null)}
-                className="md:hidden p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 mr-1"
-              >
+              <button onClick={() => setActiveChat(null)} className="md:hidden p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 mr-1">
                 <ChevronLeft size={24} />
               </button>
-              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
-                {selectedWorker.firstName?.[0]}
+              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden">
+                {selectedWorker.profilePictureUrl && isValidUrl(selectedWorker.profilePictureUrl) ? (
+                  <img src={selectedWorker.profilePictureUrl} className="w-full h-full object-cover" />
+                ) : (
+                  selectedWorker.firstName?.[0]
+                )}
               </div>
               <div className="min-w-0">
                 <h2 className="font-bold text-sm md:text-base truncate">
                   {selectedWorker.firstName} {selectedWorker.lastName}
                 </h2>
-                <span className="text-[10px] text-green-500 font-medium">
+                <span className={`text-[10px] font-medium ${userStatus[selectedWorker.id] ? "text-green-500" : "text-gray-400"}`}>
                   {userStatus[selectedWorker.id] ? "Online" : "Offline"}
                 </span>
               </div>
@@ -400,35 +461,23 @@ const WorkerChat = () => {
 
                           {m.type === "image" && (
                             <div className="rounded-lg overflow-hidden max-w-full">
-                              <Image src={m.content} alt="img" width={300} height={300} className="w-full h-auto" unoptimized />
+                              <img src={m.content} alt="img" className="w-full h-auto" />
                             </div>
                           )}
 
-                          {m.type === "video" && (
-                            <video src={m.content} controls className="max-w-full rounded-lg" />
-                          )}
+                          {m.type === "video" && <video src={m.content} controls className="max-w-full rounded-lg" />}
 
-                          {m.type === "voice" && (
-                            <audio src={m.content} controls className="max-w-full h-8" />
-                          )}
+                          {m.type === "voice" && <audio src={m.content} controls className="max-w-full h-8" />}
 
                           {m.type === "file" && (
-                            <a
-                              href={m.content}
-                              target="_blank"
-                              className="flex items-center gap-2 p-2 bg-black/5 dark:bg-white/10 rounded-lg max-w-full overflow-hidden"
-                            >
+                            <a href={m.content} target="_blank" className="flex items-center gap-2 p-2 bg-black/5 dark:bg-white/10 rounded-lg max-w-full overflow-hidden">
                               <FileIcon size={18} className="text-blue-500 flex-shrink-0" />
                               <span className="text-[10px] md:text-xs truncate flex-1">{m.fileName || "Download"}</span>
                               <Download size={14} className="flex-shrink-0" />
                             </a>
                           )}
 
-                          <div
-                            className={`flex items-center justify-end gap-1 mt-1 opacity-60 text-[9px] ${
-                              isMe ? "text-blue-100" : "text-gray-500"
-                            }`}
-                          >
+                          <div className={`flex items-center justify-end gap-1 mt-1 opacity-60 text-[9px] ${isMe ? "text-blue-100" : "text-gray-500"}`}>
                             {formatTime(m.createdAt)}
                           </div>
                         </div>
@@ -448,14 +497,9 @@ const WorkerChat = () => {
                       {pre.type === "image" ? (
                         <img src={pre.url} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Play size={16} />
-                        </div>
+                        <div className="flex items-center justify-center h-full"><Play size={16} /></div>
                       )}
-                      <button
-                        onClick={() => setFilePreviews((p) => p.filter((_, idx) => idx !== i))}
-                        className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-lg p-0.5"
-                      >
+                      <button onClick={() => setFilePreviews((p) => p.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-lg p-0.5">
                         <X size={12} />
                       </button>
                     </div>
@@ -465,28 +509,15 @@ const WorkerChat = () => {
 
               <div className="flex items-center gap-1 md:gap-2 relative">
                 <div className="flex items-center">
-                  <button
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-1.5 md:p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-                  >
+                  <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-1.5 md:p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
                     <Smile size={20} />
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 md:p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-                  >
+                  <button onClick={() => fileInputRef.current?.click()} className="p-1.5 md:p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
                     <Paperclip size={20} />
                   </button>
                 </div>
 
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  multiple
-                  onChange={handleFileChange}
-                />
-
+                <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
                 <input
                   type="text"
                   value={input}
@@ -497,39 +528,19 @@ const WorkerChat = () => {
                 />
 
                 <div className="flex items-center gap-1">
-                  <button
-                    onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
-                    onTouchStart={startRecording}
-                    onTouchEnd={stopRecording}
-                    className={`p-2 md:p-2.5 rounded-full transition-all ${
-                      isRecording ? "bg-red-500 text-white animate-pulse" : "bg-gray-100 dark:bg-gray-700 text-gray-500"
-                    }`}
-                  >
+                  <button onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={startRecording} onTouchEnd={stopRecording}
+                    className={`p-2 md:p-2.5 rounded-full transition-all ${isRecording ? "bg-red-500 text-white animate-pulse" : "bg-gray-100 dark:bg-gray-700 text-gray-500"}`}>
                     <Mic size={18} />
                   </button>
-
-                  <button
-                    onClick={sendMessage}
-                    disabled={isSending || (!input.trim() && filePreviews.length === 0)}
-                    className={`p-2 md:p-2.5 rounded-full ${
-                      isSending || (!input.trim() && filePreviews.length === 0)
-                        ? "bg-gray-200 dark:bg-gray-800 text-gray-400"
-                        : "bg-blue-600 text-white shadow-md active:scale-95"
-                    }`}
-                  >
+                  <button onClick={sendMessage} disabled={isSending || (!input.trim() && filePreviews.length === 0)}
+                    className={`p-2 md:p-2.5 rounded-full ${isSending || (!input.trim() && filePreviews.length === 0) ? "bg-gray-200 dark:bg-gray-800 text-gray-400" : "bg-blue-600 text-white shadow-md active:scale-95"}`}>
                     {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                   </button>
                 </div>
 
                 {showEmojiPicker && (
                   <div className="absolute bottom-16 left-0 z-50 max-w-[90vw]">
-                    <EmojiPicker
-                      onEmojiClick={(e) => setInput((p) => p + e.emoji)}
-                      theme={theme}
-                      width={window.innerWidth < 400 ? 280 : 320}
-                      height={400}
-                    />
+                    <EmojiPicker onEmojiClick={(e) => setInput((p) => p + e.emoji)} theme={theme} width={window.innerWidth < 400 ? 280 : 320} height={400} />
                   </div>
                 )}
               </div>
@@ -547,21 +558,10 @@ const WorkerChat = () => {
       </section>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #334155;
-        }
-        /* Mobile height fix */
-        body {
-          overflow: hidden;
-          overscroll-behavior-y: contain;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+        body { overflow: hidden; overscroll-behavior-y: contain; }
       `}</style>
     </div>
   );
