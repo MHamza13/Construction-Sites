@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { fetchWorkers } from "@/redux/worker/workerSlice";
 import { AppDispatch, RootState } from "@/redux/store";
-import { LocalNotifications } from "@capacitor/local-notifications";
+import { LocalNotifications, ActionPerformed } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 
 // --- Time Formatting Function ---
@@ -47,8 +47,8 @@ interface Notification {
   SenderID?: number;
   read: boolean;
   link?: string; 
-  type?: "project" | "chat" | "general"; // Notification type check karne ke liye
-  projectID?: string | number;           // Dynamic ID ke liye
+  type?: "project" | "chat" | "general";
+  projectID?: string | number;
 }
 
 export default function NotificationDropdown() {
@@ -61,10 +61,47 @@ export default function NotificationDropdown() {
   const dispatch = useDispatch<AppDispatch>();
   const { items: workers } = useSelector((state: RootState) => state.workers);
 
+  // --- Common Routing Logic ---
+  const handleNavigation = (data: any) => {
+    const lowerTitle = (data.title || "").toLowerCase();
+    
+    if (data.type === "chat" || lowerTitle.includes("chat") || lowerTitle.includes("message")) {
+      router.push("/chat");
+    } 
+    else if (data.type === "project" || lowerTitle.includes("project")) {
+      const pId = data.projectID || "default"; 
+      router.push(`/project-worker/${data.SenderID}?projectid=${pId}`);
+    } 
+    else if (data.link) {
+      router.push(data.link);
+    }
+  };
+
+  // --- App Kill / Background Notification Click Listener ---
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      // Jab system tray se notification click ho
+      const listener = LocalNotifications.addListener(
+        "localNotificationActionPerformed",
+        (action: ActionPerformed) => {
+          const data = action.notification.extra;
+          if (data) {
+            handleNavigation(data);
+          }
+        }
+      );
+
+      return () => {
+        listener.remove();
+      };
+    }
+  }, []);
+
   useEffect(() => {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
+  // --- Trigger Push (Only Latest) ---
   const triggerPush = async (n: Notification) => {
     if (!Capacitor.isNativePlatform()) return;
     
@@ -72,9 +109,16 @@ export default function NotificationDropdown() {
       notifications: [{
         title: n.title || "New Message",
         body: n.body || "You have a new notification",
-        id: Math.floor(Math.random() * 10000),
+        id: 1, // Constant ID '1' use karne se hamesha latest purani ko replace karegi
         channelId: 'rbs_notifications',
         smallIcon: 'ic_stat_name', 
+        extra: { // Data tray mein pass kar rahe hain navigation ke liye
+          SenderID: n.SenderID,
+          projectID: n.projectID,
+          type: n.type,
+          link: n.link,
+          title: n.title
+        }
       }]
     });
   };
@@ -85,6 +129,7 @@ export default function NotificationDropdown() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedNotifications: Notification[] = [];
       
+      // Sirf 'added' changes pakrein (Local Push ke liye)
       querySnapshot.docChanges().forEach((change) => {
         if (change.type === "added" && !isFirstRun.current) {
           const newNotif = change.doc.data() as Notification;
@@ -94,6 +139,7 @@ export default function NotificationDropdown() {
         }
       });
 
+      // Pura data UI ke liye
       querySnapshot.forEach((d) => {
         const data = d.data();
         fetchedNotifications.push({
@@ -115,11 +161,10 @@ export default function NotificationDropdown() {
     return () => unsubscribe();
   }, [workers]); 
 
-  // --- Dynamic Route Handler ---
+  // --- UI Click Handler ---
   const handleNotificationClick = async (n: Notification) => {
     setIsOpen(false); 
 
-    // Firestore Read Status Update
     if (!n.read) {
       try {
         const ref = doc(db, "notification", n.id);
@@ -128,28 +173,7 @@ export default function NotificationDropdown() {
         console.error("Error updating notification status:", error);
       }
     }
-
-    /**
-     * ROUTING LOGIC:
-     * 1. Agar Chat hai: /chat
-     * 2. Agar Project hai: /project-worker/[SenderID]?projectid=[projectID]
-     * 3. Agar Direct Link hai: n.link use karein
-     */
-    const lowerTitle = n.title.toLowerCase();
-    
-    if (n.type === "chat" || lowerTitle.includes("chat") || lowerTitle.includes("message")) {
-      router.push("/chat");
-    } 
-    else if (n.type === "project" || lowerTitle.includes("project")) {
-      // Dynamic route as requested: project-worker/46?projectid=54
-      const pId = n.projectID || "default"; 
-      router.push(`/project-worker/${n.SenderID}?projectid=${pId}`);
-    } 
-    else if (n.link) {
-      router.push(n.link);
-    } else {
-      console.log("No specific route found");
-    }
+    handleNavigation(n);
   };
 
   const closeDropdown = () => setIsOpen(false);
