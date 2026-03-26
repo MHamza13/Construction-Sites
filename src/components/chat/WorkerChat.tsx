@@ -288,7 +288,6 @@ const WorkerChat = () => {
               className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${activeChat === w.id ? "bg-blue-600 text-white shadow-lg" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}>
               <div className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-gray-300 flex items-center justify-center font-bold">
                 {w.profilePictureUrl ? <Image src={w.profilePictureUrl} alt="" width={48} height={48} className="object-cover" unoptimized /> : <span>{w.firstName?.[0]}</span>}
-                <Circle className={`w-3 h-3 absolute bottom-0 right-0 border-2 border-white ${userStatus[w.id] ? "text-green-500" : "text-gray-400"}`} fill="currentColor" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline">
