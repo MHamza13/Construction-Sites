@@ -378,7 +378,7 @@ const ProjectChat = ({ workerId, projectId }: { workerId: number; projectId: num
             // Notification for File - UPDATED WITH PROJECT ID
             const notificationPayload = {
               userId: Number(workerId) || 0,
-              type: "chat",
+              type: "projectchat",
               projectId: Number(projectId) || 0, // Added Project ID
               title: `Attachment in ${currentProject?.name}`,
               body: `${user.name} sent a file.`,
