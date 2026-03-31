@@ -41,7 +41,7 @@ const ProjectUnredComments: React.FC = () => {
     dispatch(fetchProjects());
   }, [dispatch]);
 
-  // Filter unread
+  // Filter unread comments only
   const unreadComments = useMemo(() => {
     return comments.filter((c) => !c.isRead);
   }, [comments]);
@@ -60,7 +60,9 @@ const ProjectUnredComments: React.FC = () => {
 
   // Mark as read + REFETCH
   const handleMarkRead = async (commentId: string) => {
+    // API call to mark as read
     await dispatch(markCommentAsRead(commentId));
+    // Refetching ensures the comment is removed from the unread list
     dispatch(fetchAllProjectComments());
   };
 
@@ -74,7 +76,7 @@ const ProjectUnredComments: React.FC = () => {
 
   // Find project name
   const getProjectName = (projectId: string): string => {
-    const project = projects.find((p: Project) => p.id === projectId);
+    const project = projects.find((p: Project) => String(p.id) === String(projectId));
     return project?.name || `Project #${projectId}`;
   };
 
@@ -109,16 +111,13 @@ const ProjectUnredComments: React.FC = () => {
       ) : (
         <ul className="space-y-3 h-[420px] overflow-y-auto custom-scrollbar">
           {unreadComments.map((c: ProjectComment) => {
-            // Fix: c.workerId → c.workerId, String comparison
             const worker = workers.find((w) => String(w.id) === String(c.workerId));
             const workerName = worker
               ? `${worker.firstName.trim()} ${worker.lastName.trim()}`  
               : `User #${c.workerId}`;
-            const initials = getInitials(worker?.firstName, worker?.lastName);
+            const initials = getInitials(worker?.firstName || "", worker?.lastName);
             const colorClass = getCommentColor(c.id);
             const projectName = getProjectName(c.projectId);
-
-            // profilePictureUrl already full URL
             const profileImageUrl = worker?.profilePictureUrl || null;
 
             return (
@@ -136,7 +135,7 @@ const ProjectUnredComments: React.FC = () => {
 
                   <div className="flex items-center gap-3 text-xs">
                     <button
-                      onClick={() => handleMarkRead(c._id)} // ← c._id
+                      onClick={() => handleMarkRead(c._id || c.id)} 
                       className="flex items-center gap-1 text-red-600 dark:text-red-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                     >
                       <CheckCircle size={14} />
@@ -161,46 +160,28 @@ const ProjectUnredComments: React.FC = () => {
 
                 {/* Comment Text */}
                 <p className="text-gray-700 dark:text-gray-300 mt-2 mb-2 leading-relaxed">
-                  {c.text}
+                  {c.text || (c as any).commentText}
                 </p>
 
-                {/* Attachments */}
+                {/* Attachments Logic */}
                 {c.attachments && c.attachments.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(() => {
                       try {
-                        const parsed = JSON.parse(c.attachments);
+                        const parsed = typeof c.attachments === 'string' ? JSON.parse(c.attachments) : c.attachments;
                         if (Array.isArray(parsed)) {
                           return parsed.map((img: string, i: number) => {
                             const imgUrl = img.startsWith("http")
                               ? img
                               : `${process.env.NEXT_PUBLIC_FILE_URL}/${img.replace(/^\/+/, "")}`;
                             return (
-                              <div
-                                key={i}
-                                className="relative w-16 h-16 rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 shadow-sm"
-                              >
-                                <img
-                                  src={imgUrl}
-                                  alt={`Attachment ${i + 1}`}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = "none";
-                                    const parent = target.parentElement;
-                                    if (parent) {
-                                      parent.innerHTML += `<div class="flex items-center justify-center w-full h-full bg-gray-200 dark:bg-gray-700 text-xs text-gray-500">Failed</div>`;
-                                    }
-                                  }}
-                                />
+                              <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 shadow-sm">
+                                <img src={imgUrl} alt="Attachment" className="w-full h-full object-cover" />
                               </div>
                             );
                           });
                         }
-                      } catch (err) {
-                        console.error("Failed to parse attachments:", c.attachments);
-                      }
-                      return null;
+                      } catch (err) { return null; }
                     })()}
                   </div>
                 )}
@@ -213,24 +194,13 @@ const ProjectUnredComments: React.FC = () => {
                         src={profileImageUrl}
                         alt={workerName}
                         className="w-full h-full rounded-full object-cover ring-2 ring-white dark:ring-gray-700 shadow-sm"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = "none";
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = "flex";
-                        }}
                       />
-                    ) : null}
-
-                    <div
-                      className={`absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm ring-2 ring-blue-200/50 dark:ring-blue-700/50 backdrop-blur-sm transition-opacity ${
-                        profileImageUrl ? "hidden" : "flex"
-                      } bg-blue-500 dark:bg-blue-600`}
-                    >
-                      {initials}
-                    </div>
+                    ) : (
+                      <div className="w-full h-full rounded-full flex items-center justify-center bg-blue-500 text-white font-bold text-xs">
+                        {initials}
+                      </div>
+                    )}
                   </div>
-
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate max-w-[140px]">
                     {workerName}
                   </span>
